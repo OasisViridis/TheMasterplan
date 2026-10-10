@@ -90,6 +90,14 @@ check-update
 
 ## plan-update 与 apply-update
 
+包含主动技能协作的候选包会在计划中列出新增
+`core/skill-collaboration.md`（`ADD`、必需、`managed-replace`）。它随精确计划
+批准后安装并登记，受管 Router 区块之外的项目内容保留。同名未登记文件或
+受管文件本地修改仍触发停止；登记后缺失或漂移由现有 inspect/verify/doctor
+诊断。历史版本的最低 Core/Profile 文件集合保持不变，不因为新参考而把有效
+旧安装判为损坏，也不自动重建被删改的登记。此改动属于候选 SHA，不改变
+已发布 v5.1.0 Tag；源包与执行器选择仍须遵循下述更新审核要求。
+
 升级流程复用既有命令：
 
 ```bash

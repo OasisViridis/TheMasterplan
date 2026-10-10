@@ -34,6 +34,7 @@
 | 当前任务需要 | 读取 |
 | --- | --- |
 | 普通实现、修复、文档、测试、PR 交付 | `core/workflow.md` |
+| 知识或方法缺口、关键不确定性，需要主动求助 | `core/skill-collaboration.md` |
 | 多人分工、并行依赖、责任交接与独立审阅 | `core/workflow.md` |
 | merge / release / deploy / 远端删除 / 已发布历史重写 | `core/policy.md` |
 | Git 发布或 Tag 操作 | `profiles/git.md` |
