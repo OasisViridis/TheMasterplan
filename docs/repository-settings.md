@@ -42,7 +42,8 @@ dismissed/stale approval、候选变化、有效 changes requested、
 文件只提供协议与记录校验，不配置或证明任何采用项目的实际 Ruleset、
 团队成员权限或真实 approving review。采用演练必须补齐这些平台证据。
 
-PR 作者不能批准自己的 PR。认领、标签和原生阻塞关系也须使用成员自己的身份
+GitHub 原生 approving review 不允许作者自批；协议接受受信任会话中的人类决定，
+项目要求原生 review 时仍按平台规则满足。认领、标签和原生阻塞关系须使用成员自己的身份
 与实际权限核验；Assignees 可以容纳多位成员，原生依赖显示状态不会自动阻止
 认领。完整协作规则见 [Core Workflow](../core/workflow.md)。依据：
 [Assignees API](https://docs.github.com/en/rest/issues/assignees)、
