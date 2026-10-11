@@ -3,7 +3,8 @@
 > Context-minimal AI-assisted delivery governance for GitHub and Jujutsu.
 
 TheMasterplan 是一个面向代码仓库的轻量交付治理协议：让**多人按任务协作**，
-明确协调人、执行者、独立审阅者与有权决策的人类；同时让 Agent 只加载当前任务
+用 GitHub Assignees 明确认领、协调与执行责任，让独立 Agent 会话完成技术审阅、
+人类负责 PR 批准与交付决定；同时让 Agent 只加载当前任务
 真正需要的上下文。协调人可以交接，不垄断所有人的实现、分支或审批权。
 
 它不是 Agent 运行时、编排平台、项目管理系统或自动发布机器人。研究、实现和检查
@@ -43,11 +44,11 @@ Context Router
   ↓
 只加载当前任务需要的 workflow / policy / VCS / update 文档
   ↓
-  分工 / 隔离并行 → 各单元验证 → 集成验证 → 独立审阅
+  就绪 Issue 自行认领 → 独立分支实现 → 验证与独立技术审阅
   ↓
 Pull Request / 已授权的微小修复快速通道
   ↓
-  有权人类决定 merge / release
+  人类批准 PR → 有权人类决定 merge / release → 整体验收
 ```
 
 如果另一个系统已经拥有当前任务的 worker/session、workspace、PR/CI-review 或

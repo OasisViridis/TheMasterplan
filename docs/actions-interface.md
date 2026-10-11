@@ -128,6 +128,20 @@ TheMasterplan 仓库自身在项目拥有的 `scripts/check.sh` 中，对 PR 事
 `GITHUB_EVENT_PATH` 并启用严格入口。删除整节也会失败；非 PR 本地检查通过测试
 覆盖此结构门，但不声称已核验真实审阅。该要求不改变中央工作流的历史消费者默认。
 
+### 技术审阅与人类批准的记录
+
+当前源码将 `Reviewer` / `Review` / `Evidence` 明确为技术审阅记录；Reviewer
+可以使用未参与实现的 Agent 会话稳定标识（例如 `agent:review-session`）。
+模板新增 `Human approval`：尚未批准填 `pending`，批准后填原生人类 review
+的 HTTPS 链接。出现时必须唯一、非空且为上述两种形式；历史 Collaboration
+记录缺少该字段继续兼容，严格 CLI 也不追加历史必填项。它不接受以 `complete`
+这样的无证据状态代替批准链接；链接结构通过仍不认证批准是否真实有效。
+
+此源码变更不改变旧必填标题、中央输入、权限、required check 名称或不可变 Tag。
+采用项目须显式审阅和同步项目拥有的模板/正文脚本，以及开放 PR 的新字段；
+已发布 v5.1.1 的模板或消费者不会自动得到本次变更。完整规则以
+[Core Workflow](../core/workflow.md) 与 [仓库设置](repository-settings.md) 为准。
+
 ## 消费者契约
 
 调用方仓库必须满足最小采用契约（由 `scripts/validate_consumer.py` 机械验证）：

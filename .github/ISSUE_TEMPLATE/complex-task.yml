@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        此表单用于 `AGENTS.md` 定义的复杂任务路径，只记录任务目标与边界，不改变仓库的权威顺序或人工批准与聚合授权规则。
+        此表单用于 `AGENTS.md` 定义的复杂任务路径，不改变权威顺序或批准规则。父 Issue 的唯一 Assignee 是协调人；执行 Issue 的唯一 Assignee 是执行者。并行交付拆为子 Issue。分类使用 bug / enhancement，准备状态按 Core Workflow 设置；ready-for-agent 不证明依赖满足或认领成功。
 
   - type: textarea
     id: goal
@@ -54,10 +54,10 @@ body:
     id: dependencies_order
     attributes:
       label: 依赖与执行顺序
-      description: 记录前置 Issue、外部依赖或必须遵守的执行顺序；没有依赖时填写“无”。
+      description: 使用原生 Blocked by / Blocking，并说明具体所需结果；上游 PR 合入 main 且结果验收后下游才可认领开工，关闭 Issue 本身不足为证。没有依赖填“无”。
       placeholder: |
-        - 依赖：
-        - 执行顺序：
+        - 原生阻塞 Issue：
+        - 所需结果 / 合并提交 / 验收证据：
     validations:
       required: true
 
@@ -65,12 +65,14 @@ body:
     id: collaboration
     attributes:
       label: 协作分工与交接
-      description: 记录单人/团队模式、协调人、执行单元负责人、独立审阅者、依赖与授权来源；尚未确定的角色写明待指派。
+      description: 记录模式、父/执行 Issue 归属、文件边界和授权。未参与实现的另一 Agent 会话可技术审阅，人类单独批准。角色待定写待指派；释放任务须先停止写入作业、留下交接，再清空执行 Assignee。
       placeholder: |
         - 模式：团队 / 单人
-        - 当前协调人：
-        - 交付单元 / 执行者 / 文件边界 / ref / 依赖：
-        - 独立审阅者：待指派
+        - 父 Issue / 当前协调人：无 / 链接与 Assignee
+        - 执行 Issue / 唯一 Assignee / 文件边界 / worktree / ref：
+        - 共享接口、类型或逻辑的修改归属：无 / Issue
+        - 独立技术审阅者（人或 Agent 会话）：待指派
+        - 非 PR 作者的人类批准人 / 原生 review 证据：待指派
         - 有权决策角色与授权来源：
         - 交接记录：无 / 链接
     validations:
