@@ -43,6 +43,33 @@ COLLABORATION = """\n## Collaboration
 
 
 class CollaborationRecordTests(unittest.TestCase):
+    def test_cli_keeps_technical_review_separate_from_human_approval(self):
+        command = [sys.executable, str(Path(__file__).with_name("validate_pr_body.py")),
+                   "--require-collaboration"]
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        env.pop("PR_BODY", None)
+        for approval, expected in (("pending", 0),
+                                   ("https://github.com/example/project/pull/1#pullrequestreview-2", 0),
+                                   ("complete", 1)):
+            with self.subTest(approval=approval):
+                body = COLLABORATION.replace("Reviewer: @carol", "Reviewer: agent:review-session")
+                body += f"- Human approval: {approval}\n"
+                result = subprocess.run(command, input=BASE + body, env=env,
+                                        capture_output=True, text=True, encoding="utf-8")
+                self.assertEqual(result.returncode, expected, result.stderr)
+
+    def test_cli_rejects_ambiguous_or_empty_human_approval_records(self):
+        command = [sys.executable, str(Path(__file__).with_name("validate_pr_body.py"))]
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        env.pop("PR_BODY", None)
+        for record in ("- Human approval: \n", "- Human approval: <review-url>\n",
+                       "- Human approval: http://example.com/review\n",
+                       "- Human approval: pending\n- Human approval: pending\n"):
+            with self.subTest(record=record):
+                result = subprocess.run(command, input=BASE + COLLABORATION + record,
+                                        env=env, capture_output=True, text=True, encoding="utf-8")
+                self.assertEqual(result.returncode, 1, result.stderr)
+
     def test_team_record_and_legacy_compatibility(self):
         self.assertEqual(validate(BASE), [])
         self.assertEqual(validate(BASE + COLLABORATION), [])

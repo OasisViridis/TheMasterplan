@@ -21,8 +21,10 @@
 ## Collaboration
 
 <!-- 新任务填写；历史 PR 无此节仍保持兼容。角色使用稳定标识，以逗号分隔 Contributors。
-     CI 只检查记录结构，不证明身份、授权或真实 GitHub review。
-     Draft 保持 Review: pending；完整审阅后填写候选 SHA 与证据。
+     Contributors 包含实际实现 Agent 的会话标识；Reviewer 是未参与实现的审阅人/Agent 会话。
+     Review / Evidence 只记录技术审阅；审阅完成后填写完整候选 SHA 与报告链接。
+     Human approval 保持 pending，直到具备资格的非作者人类批准；之后填原生 review 的 HTTPS 链接。
+     此新增字段对历史记录可选。CI 只检查结构，不证明身份、授权、独立性或真实 GitHub approval。
      单人模式仍遵守项目 required reviews，不因填 solo 而绕过保护。 -->
 
 - Mode: team
@@ -32,6 +34,7 @@
 - Candidate: pending
 - Review: pending
 - Evidence: pending
+- Human approval: pending
 - Dependencies: none
 - Handoff: none
 

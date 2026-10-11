@@ -85,6 +85,12 @@ def validate_collaboration(body, required=False):
             errors.append("Complete review requires the full reviewed candidate SHA.")
         if not re.fullmatch(r"https://\S+", values["Evidence"]):
             errors.append("Complete review requires an HTTPS evidence reference.")
+    # Optional for historical records; a technical review is not human approval.
+    approvals = re.findall(r"(?m)^- Human approval:[ \t]*(.*)$", content)
+    if approvals and (len(approvals) != 1 or
+                      (approvals[0].strip() != "pending" and
+                       not re.fullmatch(r"https://[^\s<>]+", approvals[0].strip()))):
+        errors.append("Human approval must be pending or one HTTPS native review reference.")
     return errors
 
 

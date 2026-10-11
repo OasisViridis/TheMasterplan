@@ -45,6 +45,8 @@
 | 版本通道与 Release | `docs/release-channels.md` |
 | 外部工作流所有权边界 | `docs/external-workflow-abstention.md` |
 | 新项目采用与 smoke | `docs/adoption-guide.md` |
+| Matt 方法技能需要 Issue tracker 或标签映射 | `docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md` |
+| 协作术语或设计决定 | `docs/agents/domain.md` |
 
 不要因为文件存在就读取它；按任务需要渐进披露。
 

@@ -4,14 +4,16 @@
 
 ## 团队协作
 
-按 [Core Workflow](core/workflow.md) §1.1–1.3 记录角色、拆分和交接。不同成员可
+按 [Core Workflow](core/workflow.md) §1.1–1.4 记录角色、认领、依赖和交接。不同成员可
 各自实现并提交自己的子任务，不把仓库所有任务串行锁在一个人的会话中。
 以下 jj 命令描述一个交付单元；Git-only 成员使用独立任务分支与隔离 worktree，
-不为参与协作强制转换 VCS。共享文件/ref 先协调，不同时写入。
+不为参与协作强制转换 VCS。同文件不同部分可并行，共享接口/类型/逻辑先确定归属。
 
 协作记录采用 PR 模板的 `Collaboration` 节：稳定成员标识、当前协调人、执行者、
-独立审阅者、完整候选 SHA、review 状态/证据、依赖与交接链接。草稿可以明确
-`pending`/`unassigned`，这表示未完成审阅，不能报告可合并。
+独立技术审阅人或 Agent 会话、完整候选 SHA、技术审阅证据、依赖与交接链接。
+人类批准单独记录为原生 review 链接，未批准时保持 `pending`；历史记录可省略
+该字段。未参与实现的另一 Agent 会话可由执行者发起；具体批准资格与候选有效性
+按 Core 和 [仓库设置](docs/repository-settings.md) 核验，不能靠正文声明报告可合并。
 
 异步人类决定也可作为授权来源，核验身份与权限并按 [Core Policy](core/policy.md)
 记录范围；不要让所有人回到原执行者的聊天重新批准。相互矛盾的授权不按留言
@@ -48,6 +50,11 @@ jj bookmark list --tracked main
 ## 复杂任务
 
 先在 GitHub 新建 Issue 时选择唯一的[复杂任务 Issue form](.github/ISSUE_TEMPLATE/complex-task.yml)，记录目标、范围、验收条件、排除项、依赖与执行顺序：
+
+有拆分时父 Issue 的 Assignee 是协调人；每个执行 Issue 自行认领一位 Assignee，
+使用独立工作区、任务 ref 与 PR。先按 Core §1.2 核验就绪、无人认领与依赖满足，
+指派后重新读取实际归属。下游等待上游合入 `main` 且约定结果验收后再开工，
+从包含该结果的最新基线创建单元；释放和重复认领按 Core 处理。
 
 ```bash
 jj new main -m "issue #<number>: <single outcome>"

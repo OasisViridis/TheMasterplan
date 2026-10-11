@@ -18,8 +18,11 @@ GitHub Template Repository 只复制仓库文件，不能保证这些服务器�
 执行的动作。用实际成员的独立凭据操作，不共享账号或凭据；CODEOWNERS、权限
 与 Ruleset 的配置/变更须另有明确授权，不能从任务或 PR 创建授权推导。
 
-团队采用者须配置并核验：至少一位有资格的独立 approving reviewer、required
-CI、blocking conversation/review 的处理规则，以及新候选的重新审阅。GitHub 可
+团队采用者须核验：至少一位具备批准资格的非 PR 作者人类批准人、required
+CI、blocking conversation/review 的处理规则，以及新候选的重新技术审阅与批准。
+技术审阅可由未参与实现的另一 Agent 会话完成，执行者可自行发起；人类依据报告
+决定是否批准，不要求人类重复完成全部技术审阅，也不限定只有协调人可批准。
+协议的人类批准义务在平台 required approval 数量为零时仍然存在。GitHub 可
 要求 required reviews、dismiss stale approvals，以及由非最后推送者批准最新
 reviewable push；可按模块配置 CODEOWNERS。支持情况按仓库类型/套餐实核，不将
 模板文字当作服务器端设置已生效。
@@ -29,13 +32,21 @@ reviewable push；可按模块配置 CODEOWNERS。支持情况按仓库类型/�
 
 合并前读取当前 PR head、真实 review（审阅者、状态与 commit）、CI 和保护门：
 并核对任务 Issue/授权模式与 PR 一致、实际实现者未从 Contributors 漏记。
-作者自审、bot/子代理意见、正文的 `Review: complete` 或证据链接本身均不等于
-required approval。dismissed/stale approval、候选变化、有效 changes requested、
+作者自审、Agent 技术报告、正文的 `Review: complete`、`Human approval` 或证据
+链接本身均不等于真实批准。须从平台读取批准人、review 状态、commit 与实际资格。
+dismissed/stale approval、候选变化、有效 changes requested、
 未知权限或平台门未满足时不合并；不替审阅者 dismiss，不自动降低人数或 bypass。
 有权人类批准 merge 也不能覆盖这些限制。
 
-本次文件改革只提供协议与记录校验，未配置或验证任何采用项目的实际 Ruleset、
+文件只提供协议与记录校验，不配置或证明任何采用项目的实际 Ruleset、
 团队成员权限或真实 approving review。采用演练必须补齐这些平台证据。
+
+PR 作者不能批准自己的 PR。认领、标签和原生阻塞关系也须使用成员自己的身份
+与实际权限核验；Assignees 可以容纳多位成员，原生依赖显示状态不会自动阻止
+认领。完整协作规则见 [Core Workflow](../core/workflow.md)。依据：
+[Assignees API](https://docs.github.com/en/rest/issues/assignees)、
+[Issue dependencies](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-issue-dependencies)、
+[Approving a pull request](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/approving-a-pull-request-with-required-reviews)。
 
 ## Required check
 
