@@ -1,10 +1,12 @@
-"""Version identity and truthful pre-publication contracts for v5.1.0."""
+"""Version identity and truthful pre-publication contracts for v5.1.1."""
 import json
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "v5.1.0"
+VERSION = "v5.1.1"
+PREVIOUS = "v5.1.0"
+
 
 class ReleasePreparationTests(unittest.TestCase):
     def test_manifest_target_version(self):
@@ -31,11 +33,35 @@ class ReleasePreparationTests(unittest.TestCase):
         self.assertIn("发布状态", agents)
 
     def test_release_notes_document_upgrade_limits_and_sources(self):
-        notes = (ROOT / "docs/releases/v5.1.0.md").read_text(encoding="utf-8")
-        for required in (VERSION, "发布状态", "旧计划", "旧执行器", "v1", "v5.0.0", "崩溃原子", "人类审阅"):
+        notes = (ROOT / "docs/releases/v5.1.1.md").read_text(encoding="utf-8")
+        for required in (VERSION, "发布状态", "受管必需文件", "停止", PREVIOUS, "v1", "未验证", "人类审阅"):
             self.assertIn(required, notes)
-        for number in (94, 96, 98, 100):
-            self.assertIn("https://github.com/OasisSaber/TheMasterplan/pull/" + str(number), notes)
+        for url in (
+            "https://github.com/OasisSaber/TheMasterplan/pull/104",
+            "https://github.com/OasisSaber/TheMasterplan/issues/103",
+        ):
+            self.assertIn(url, notes)
+
+    def test_release_notes_do_not_overclaim_unverified_behaviour_acceptance(self):
+        notes = (ROOT / "docs/releases/v5.1.1.md").read_text(encoding="utf-8")
+        self.assertIn("未验证", notes)
+        self.assertNotIn("行为场景已完成", notes)
+        # The prior release notes remain a published reference.
+        previous = (ROOT / "docs/releases/v5.1.0.md").read_text(encoding="utf-8")
+        self.assertIn("# v5.1.0 发布说明", previous)
+
+    def test_skill_collaboration_reference_is_registered_and_distributed(self):
+        manifest = json.loads((ROOT / "distribution/manifest.json").read_text(encoding="utf-8"))
+        entries = [
+            entry
+            for entry in manifest["files"]
+            if entry["destination"] == "core/skill-collaboration.md"
+        ]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["ownership"], "managed-replace")
+        self.assertTrue(entries[0]["required"])
+        self.assertIn("core/skill-collaboration.md", manifest["required"])
+        self.assertTrue((ROOT / "core/skill-collaboration.md").is_file())
 
     def test_boundary_notes_do_not_freeze_prepublication_status(self):
         text = (ROOT / "docs/client-update-flow.md").read_text(encoding="utf-8")
@@ -45,10 +71,13 @@ class ReleasePreparationTests(unittest.TestCase):
 
     def test_frozen_compatibility_and_published_baseline_remain_documented(self):
         channels = (ROOT / "docs/release-channels.md").read_text(encoding="utf-8")
+        self.assertIn("v5.1.1      本源码目标不可变 Release tag", channels)
+        self.assertIn("v5.1.0      历史不可变 Release tag", channels)
         self.assertIn("v5.0.0      历史不可变 Release tag", channels)
         self.assertIn("v1", channels)
         self.assertIn("冻结", channels)
         self.assertIn("aw-check.yml@v1", channels)
+
 
 if __name__ == "__main__":
     unittest.main()

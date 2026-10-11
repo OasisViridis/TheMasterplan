@@ -1,6 +1,6 @@
 # TheMasterplan 采用指南
 
-本源码目标为 **v5.1.0**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.0 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
+本源码目标为 **v5.1.1**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.1 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
 
 ## 工具与平台基线
 
@@ -54,9 +54,9 @@ jobs:
     name: check
     permissions:
       contents: read
-    uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.0
+    uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.1
     with:
-      policy-ref: v5.1.0
+      policy-ref: v5.1.1
       project-check-path: scripts/check.sh
 ```
 
