@@ -72,7 +72,7 @@ body:
         - 执行 Issue / 唯一 Assignee / 文件边界 / worktree / ref：
         - 共享接口、类型或逻辑的修改归属：无 / Issue
         - 独立技术审阅者（人或 Agent 会话）：待指派
-        - 非 PR 作者的人类批准人 / 原生 review 证据：待指派
+        - 人类批准人 / 决定证据（平台要求时含原生 review）：待指派
         - 有权决策角色与授权来源：
         - 交接记录：无 / 链接
     validations:
