@@ -14,6 +14,11 @@
 
 ## 选择采用范围
 
+本候选的采用包在 Git 与 Jujutsu 两种 Profile 下均分发
+`core/skill-collaboration.md`，由受管 Router 和 Core Workflow 按缺口触达。
+外部方法技能仍由采用项目自行选择，不安装技能库。候选采用须固定经审核的
+完整 SHA；既有 v5.1.0 Tag 的内容不变，不包含本次新增参考。
+
 ### 中央调用模式（推荐）
 
 业务仓库保留自己的项目验证入口，通过可重用工作流调用 TheMasterplan 中央治理检查，

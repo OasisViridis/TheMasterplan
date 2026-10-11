@@ -4,6 +4,7 @@
 This block is the project Context Router. Load guidance only when the task needs it.
 
 - routine delivery and external-ownership decisions: `core/workflow.md`
+- knowledge or method gaps / critical uncertainty: `core/skill-collaboration.md`
 - team roles, parallel dependencies, handoff and independent review: `core/workflow.md`
 - authorization / merge / release / destructive remote action: `core/policy.md`
 - VCS release/tag: load the selected installed profile under `profiles/`

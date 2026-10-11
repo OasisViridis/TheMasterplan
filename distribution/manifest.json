@@ -4,7 +4,8 @@
   "source_repository": "OasisSaber/TheMasterplan",
   "required": [
     "core/workflow.md",
-    "core/policy.md"
+    "core/policy.md",
+    "core/skill-collaboration.md"
   ],
   "components": {
     "profiles": [
@@ -25,6 +26,12 @@
     {
       "source": "core/policy.md",
       "destination": "core/policy.md",
+      "ownership": "managed-replace",
+      "required": true
+    },
+    {
+      "source": "core/skill-collaboration.md",
+      "destination": "core/skill-collaboration.md",
       "ownership": "managed-replace",
       "required": true
     },
