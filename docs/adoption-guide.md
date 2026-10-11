@@ -1,6 +1,6 @@
 # TheMasterplan 采用指南
 
-本源码目标为 **v5.1.1**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.1 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
+本源码目标为 **v5.1.2**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.2 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
 
 ## 工具与平台基线
 
@@ -54,9 +54,9 @@ jobs:
     name: check
     permissions:
       contents: read
-    uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.1
+    uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.2
     with:
-      policy-ref: v5.1.1
+      policy-ref: v5.1.2
       project-check-path: scripts/check.sh
 ```
 
@@ -186,7 +186,7 @@ TheMasterplan 不提供外部 orchestrator 专用兼容层。
    新协调人核验并接受、旧协调人停止任务写入后同步父 Assignee。失联或作业
    未知时按 Core 的人类重新指派与停止/隔离边界处理。
 5. 执行者安排未参与实现的另一 Agent 会话技术审阅完整候选，报告绑定 SHA。
-   由具备批准资格的非作者人类批准，单独记录原生 review；不能用 Agent 报告
+   由具备批准资格的人类批准，单独记录决定；项目要求原生 review 时核验平台记录。不能用 Agent 报告
    或结构 CI 代替批准。候选变化后复验、重新技术审阅并核验当前批准。
 6. CI、人类批准和保护门满足后交有权人类决定 merge。全部子任务交付后，
    协调人安排 Agent 对合入后的整体结果验收，在父 Issue 记录基线、结果与证据。
