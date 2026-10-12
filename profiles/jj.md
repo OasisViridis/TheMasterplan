@@ -16,6 +16,12 @@
 
 ## 阶段 A：自主准备
 
+候选来自直接审核的既有 main SHA，或
+[Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 核验通过的
+唯一合并结果 SHA。派生路径先核验平台记录、main、已审预期树，重新完成完整
+验证和消费者 smoke，再固定 `APPROVED_CANDIDATE_SHA`；相同树不允许使用任意
+change。执行身份与预期受限凭据切换按 Core §1.2 核验。
+
 只读检查、候选解析、验证和审核材料准备不需要逐步批准。
 
 ```bash
@@ -26,10 +32,13 @@ git ls-remote --tags origin
 jj tag list
 ```
 
-固定候选为 `APPROVED_CANDIDATE_SHA`；审核中不得用 `@`、`main` 或 change ID
-前缀代替完整 SHA。审核列明 `TAG`、`NOTES_FILE`、完整写操作、顺序、验证结果、
+直接路径固定候选为 `APPROVED_CANDIDATE_SHA`；审核中不得用 `@`、`main` 或 change ID
+前缀代替完整 SHA。§2.2 派生路径在合并前审核全部绑定项与唯一转换，结果 SHA
+合并后才按 Core 固定并核验，不把 head 冒充结果、不重复批准获批范围。
+审核列明 `TAG`、`NOTES_FILE`、完整写操作、顺序、验证结果、
 当前远端状态和停止条件。目标 tag 在本地和远端都必须不存在；通过 gh 核实
 目标 Release 不存在。网络、认证或查询失败不是“不存在”的证据，应停止核实。
+审核也列明 Notes 内容 SHA-256；派生路径附 Core §2.2 的 PR/head/base/树和重验记录。
 
 ## 阶段 C：执行已批准事务
 
