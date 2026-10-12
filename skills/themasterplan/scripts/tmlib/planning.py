@@ -8,12 +8,15 @@ never writes project files.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
+from .apply import executor_entries, _render_template
 from .manifest import ManifestError, select_files
 from .source import DEFAULT_REPOSITORY, Source, package_manifest
 from .util import (TheMasterplanError, safe_join, sha256_of_block, sha256_of_file,
-                   validate_target_paths)
+                   sha256_of_block_bytes, validate_target_paths)
 
 MANAGED_BLOCK_TEMPLATE = "distribution/templates/agents-managed-block.md"
 CONSUMER_WORKFLOW_TEMPLATE = "distribution/templates/consumer-workflow.yml"
@@ -22,6 +25,13 @@ PROJECT_CHECK_TEMPLATE = "distribution/templates/project-check-placeholder.sh"
 
 class PlanningError(TheMasterplanError):
     """Raised when a plan cannot be generated for a clear reason."""
+
+
+def adopt_plan_digest(plan: dict) -> str:
+    """Stable summary to bind a separately recorded human review, not approval."""
+    payload = {key: value for key, value in plan.items() if key != "plan_sha256"}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def _package_hash(package_root: Path, relative: str) -> str | None:
@@ -108,6 +118,16 @@ def plan_adopt(
     if not entries:
         raise PlanningError("no files selected by manifest for profile")
 
+    # Use the existing bundle definition; never install an unplanned second set.
+    bundle = executor_entries(source)
+    bundle_map = {entry["destination"]: entry for entry in bundle}
+    for entry in entries:
+        expected = bundle_map.get(entry["destination"])
+        if expected is not None and any(entry.get(key) != expected[key]
+                                        for key in ("source", "ownership", "required")):
+            raise PlanningError(f"manifest executor mapping differs: {entry['destination']}")
+    entries = [entry for entry in entries if entry["destination"] not in bundle_map] + bundle
+
     # Source identity comes from the resolver only; the manifest version and
     # repository must agree with the resolver's Source (the resolver already
     # validated them, this is a defense-in-depth assertion).
@@ -133,12 +153,12 @@ def plan_adopt(
             "required": entry.get("required", False),
             "classification": classification,
         }
-        if classification in ("ADD", "UNCHANGED", "CONFLICT", "BLOCK_PRESENT", "BLOCK_MISSING"):
+        if entry["ownership"] != "project-owned":
             source_hash = _package_hash(package_root, entry["source"])
             if source_hash is None:
                 raise PlanningError(f"package source file missing: {entry['source']}")
             op["source_sha256"] = source_hash
-        if classification in ("UNCHANGED", "EXISTS_KEEP", "BLOCK_PRESENT", "PROJECT_OWNED"):
+        if _safe_exists(project_root, dest):
             # Record the observed hash of existing managed targets so apply
             # can refuse when the target changed after planning.
             op["observed_sha256"] = _observed_hash(project_root, dest, entry["ownership"])
@@ -187,15 +207,31 @@ def plan_adopt(
     if conflicts:
         stop_conditions.append(f"conflicting managed files: {', '.join(conflicts)}")
 
+    state_path = safe_join(project_root, ".themasterplan/state.json")
+    if state_path.exists():
+        stop_conditions.append("existing installation: use plan-update or doctor, not adoption")
+    elif safe_join(project_root, ".themasterplan/bin").exists():
+        stop_conditions.append("unregistered executor installation: explicit diagnosis required")
+
+    selection = {"profile": profile, "validation_path": validation_path,
+                 "default_branch": default_branch}
+    for op in operations + generated:
+        if op["classification"] in ("EXISTS_KEEP", "PROJECT_OWNED"):
+            op["target_sha256"] = op.get("observed_sha256")
+        else:
+            content = safe_join(package_root, op["source"]).read_bytes()
+            if op.get("render"):
+                content = _render_template(content, {"selection": selection})
+            op["target_sha256"] = (sha256_of_block_bytes(content)
+                                    if op["ownership"] == "managed-block"
+                                    else hashlib.sha256(content).hexdigest())
+
     plan = {
         "schema_version": 1,
         "plan_type": "adopt",
         "source": source.as_dict(),
-        "selection": {
-            "profile": profile,
-            "validation_path": validation_path,
-            "default_branch": default_branch,
-        },
+        "selection": selection,
+        "manifest_sha256": sha256_of_file(package_root / "distribution/manifest.json"),
         "files": operations + generated,
         "notes": [
             "AGENTS.md: only the TheMasterplan managed block is written; project content outside the block is preserved.",
@@ -205,4 +241,5 @@ def plan_adopt(
     }
     validate_target_paths([op["destination"] for op in plan["files"]] +
                           [".themasterplan/state.json"])
+    plan["plan_sha256"] = adopt_plan_digest(plan)
     return plan

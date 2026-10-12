@@ -85,7 +85,8 @@ class SkillCollaborationTests(unittest.TestCase):
         plan = self.plan_adopt(profile, source)
         self.assertEqual(plan["stop_conditions"], [])
         self.command("apply-adopt", "--source", str(source), "--commit",
-                     FIXTURE_COMMIT, "--plan", str(self.plan_path))
+                     FIXTURE_COMMIT, "--plan", str(self.plan_path),
+                     "--plan-sha256", plan["plan_sha256"])
         return plan
 
     def test_git_and_jj_adopt_install_reachable_required_guidance(self) -> None:
@@ -138,7 +139,7 @@ class SkillCollaborationTests(unittest.TestCase):
         self.assertEqual(operation["classification"], "CONFLICT")
         self.assertTrue(plan["stop_conditions"])
         self.command("apply-adopt", "--source", str(ROOT), "--commit", FIXTURE_COMMIT,
-                     "--plan", str(self.plan_path), success=False)
+                     "--plan", str(self.plan_path), "--plan-sha256", plan["plan_sha256"], success=False)
         self.assertEqual(target.read_text(encoding="utf-8"), "Project-owned guidance\n")
         self.assertFalse((self.root / ".themasterplan/state.json").exists())
 
