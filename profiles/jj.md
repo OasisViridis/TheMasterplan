@@ -32,8 +32,10 @@ git ls-remote --tags origin
 jj tag list
 ```
 
-固定候选为 `APPROVED_CANDIDATE_SHA`；审核中不得用 `@`、`main` 或 change ID
-前缀代替完整 SHA。审核列明 `TAG`、`NOTES_FILE`、完整写操作、顺序、验证结果、
+直接路径固定候选为 `APPROVED_CANDIDATE_SHA`；审核中不得用 `@`、`main` 或 change ID
+前缀代替完整 SHA。§2.2 派生路径在合并前审核全部绑定项与唯一转换，结果 SHA
+合并后才按 Core 固定并核验，不把 head 冒充结果、不重复批准获批范围。
+审核列明 `TAG`、`NOTES_FILE`、完整写操作、顺序、验证结果、
 当前远端状态和停止条件。目标 tag 在本地和远端都必须不存在；通过 gh 核实
 目标 Release 不存在。网络、认证或查询失败不是“不存在”的证据，应停止核实。
 审核也列明 Notes 内容 SHA-256；派生路径附 Core §2.2 的 PR/head/base/树和重验记录。

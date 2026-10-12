@@ -38,6 +38,10 @@ Release。`v1` 兼容线已冻结（指向承载 v2.0.0 内容的提交），**t
 以下命令全部在最终发布审核前完成，不产生远端写入。使用 `set -euo pipefail`
 或每条检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
 
+下列候选读取用于直接审核既有 main 的路径。§2.2 派生路径在合并前审核完整
+绑定项与唯一转换，结果 SHA 尚不存在；合并后按 Core 完成核验再固定该变量，
+不能把当前 main 或 PR head 填作结果，也不因获批转换而重复请求同范围批准。
+
 ```bash
 set -euo pipefail
 git fetch origin
@@ -78,7 +82,8 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 ### 最终发布审核必须包含
 
 - 发布版本号（`$TAG`）；
-- 候选 commit SHA（`APPROVED_CANDIDATE_SHA`，等于最新 `origin/main`）；
+- 直接路径列完整候选 SHA（`APPROVED_CANDIDATE_SHA`，等于最新 `origin/main`）；
+  派生路径合并前列 Core §2.2 全部绑定项与唯一转换，合并后固定并核验结果 SHA；
 - Release Notes 状态与 `NOTES_FILE` 路径；
 - Notes 内容 SHA-256、执行身份与预期受限凭据切换；派生路径另附 Core §2.2 的绑定与重验记录；
 - 即将执行的全部外部写操作与顺序（tag-only：push tag → smoke → Release）；
