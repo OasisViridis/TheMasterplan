@@ -29,6 +29,12 @@ Release。`v1` 兼容线已冻结（指向承载 v2.0.0 内容的提交），**t
 
 ## 阶段 A：发布前检查（只读）
 
+候选有两条路径：直接审核既有 `main` 完整 SHA，或先按
+[Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 完成已批准
+合并的唯一结果转换与重验。后一条在平台记录、main、预期内容树、完整验证与
+消费者 smoke 全部一致后才固定 `APPROVED_CANDIDATE_SHA`；下列 tag-only 命令
+不负责授权合并或推导候选。执行身份与预期凭据切换按 Core §1.2 核验。
+
 以下命令全部在最终发布审核前完成，不产生远端写入。使用 `set -euo pipefail`
 或每条检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
 
@@ -74,6 +80,7 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 - 发布版本号（`$TAG`）；
 - 候选 commit SHA（`APPROVED_CANDIDATE_SHA`，等于最新 `origin/main`）；
 - Release Notes 状态与 `NOTES_FILE` 路径；
+- Notes 内容 SHA-256、执行身份与预期受限凭据切换；派生路径另附 Core §2.2 的绑定与重验记录；
 - 即将执行的全部外部写操作与顺序（tag-only：push tag → smoke → Release）；
 - 当前验证结果；
 - 停止条件；
