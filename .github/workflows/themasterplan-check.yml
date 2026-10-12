@@ -37,10 +37,10 @@ jobs:
           persist-credentials: false
 
       - name: Checkout TheMasterplan policy
-        if: github.repository != 'OasisSaber/TheMasterplan'
+        if: github.repository != 'OasisViridis/TheMasterplan' && github.repository != 'OasisSaber/TheMasterplan'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          repository: OasisSaber/TheMasterplan
+          repository: OasisViridis/TheMasterplan
           ref: ${{ inputs.policy-ref }}
           path: .themasterplan
           fetch-depth: 1
@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "$GITHUB_REPOSITORY" == "OasisSaber/TheMasterplan" ]]; then
+          if [[ "$GITHUB_REPOSITORY" == "OasisViridis/TheMasterplan" || "$GITHUB_REPOSITORY" == "OasisSaber/TheMasterplan" ]]; then
             echo "POLICY_DIR=$GITHUB_WORKSPACE/project" >> "$GITHUB_ENV"
           else
             echo "POLICY_DIR=$GITHUB_WORKSPACE/.themasterplan" >> "$GITHUB_ENV"
