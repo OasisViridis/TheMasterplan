@@ -152,11 +152,21 @@ repository）。被本地修改的文件不会被覆盖（`LOCAL_MODIFIED` 停�
 
 ## Actions 手动同步
 
+### 仓库改名与来源身份
+
+当前托管仓库为 `OasisViridis/TheMasterplan`。本次候选来源解析仅把它与
+`OasisSaber/TheMasterplan` 视为明确的定位别名；仍按固定包 Manifest 的
+`source_repository` 构造 Source，并验证版本、完整 SHA 与内容。历史包、State
+与缓存登记保留原身份，不全局改写；其他 owner/repo 的不匹配仍拒绝。
+缓存按请求的定位名称与 commit 隔离，别名不让一个包冒用另一个包的来源。
+下文及已有状态示例中的历史来源名继续有效；当前 Actions 调用使用当前托管名。
+此兼容规则只属于候选执行器，已发布执行器必须按其原契约使用。
+
 升级执行器不会修改业务仓库的 GitHub Actions。采用者或获明确批准的 Agent
 按审核范围同步：
 
 ```yaml
-uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@<target-version>
+uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@<target-version>
 with:
   policy-ref: <target-version>
 ```

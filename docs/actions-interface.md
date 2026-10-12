@@ -1,6 +1,6 @@
 # GitHub Actions 中央接口
 
-本源码目标为 **v5.1.2**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.2 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
+本源码目标为 **v5.1.2**；发布状态以 [GitHub Releases](https://github.com/OasisViridis/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.2 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
 
 TheMasterplan 提供集中维护、版本化发布的 GitHub Actions 可重用工作流。
 业务仓库通过 `uses` 调用，不再复制中央 CI 实现。
@@ -16,7 +16,7 @@ uses: OasisSaber/TheMasterplan/.github/workflows/aw-check.yml@v1
 本源码目标版本（v5.1.2，tag-only 精确固定）：
 
 ```yaml
-uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.2
+uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.2
 with:
   policy-ref: v5.1.2
 ```
@@ -72,6 +72,11 @@ TheMasterplan reusable workflow
 
 TheMasterplan 仓库自身通过相对路径调用当前提交内的 reusable workflow，确保 TheMasterplan 的 PR
 测试当前 PR 中的策略实现而不是远端旧版本。
+
+候选源码对当前身份 `OasisViridis/TheMasterplan` 与已知历史身份
+`OasisSaber/TheMasterplan` 都使用调用方 checkout 的候选策略。其他仓库仍检出
+当前中央仓库并使用 `inputs.policy-ref`；输入、只读权限和 required check 均不变。
+这只修正源码中的策略选择，不修改已发布 Tag 或替采用项目自动同步工作流。
 
 ## 职责边界
 

@@ -1,4 +1,8 @@
 import re
+import os
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -127,6 +131,32 @@ class ActionsContractTests(unittest.TestCase):
 
     def test_runner_is_ubuntu_latest(self):
         self.assertEqual(self.check.get("runs-on"), "ubuntu-latest")
+
+    def test_policy_selection_executes_current_historical_and_consumer_branches(self):
+        steps = self.check["steps"]
+        checkout = next(s for s in steps if s["name"] == "Checkout TheMasterplan policy")
+        selection = next(s for s in steps if s["name"] == "Select policy source")
+        names = ("OasisViridis/TheMasterplan", "OasisSaber/TheMasterplan")
+        self.assertEqual(checkout["if"], " && ".join(f"github.repository != '{n}'" for n in names))
+        self.assertEqual(checkout["with"]["repository"], names[0])
+        self.assertEqual(checkout["with"]["ref"], "${{ inputs.policy-ref }}")
+        bash = shutil.which("bash")
+        if os.name == "nt" and Path("C:/Program Files/Git/bin/bash.exe").is_file():
+            bash = "C:/Program Files/Git/bin/bash.exe"
+        if not bash:
+            self.skipTest("Bash is required to execute the actual policy selection step")
+        with tempfile.TemporaryDirectory() as tmp:
+            for repository in (*names, "consumer/App", "other/TheMasterplan"):
+                with self.subTest(repository=repository):
+                    env_file = Path(tmp) / "env"
+                    env_file.write_bytes(b"")
+                    env = {**os.environ, "GITHUB_REPOSITORY": repository,
+                           "GITHUB_WORKSPACE": "/candidate", "GITHUB_ENV": env_file.as_posix()}
+                    result = subprocess.run([bash, "-c", selection["run"]], env=env,
+                                            capture_output=True, text=True, timeout=15)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    suffix = "project" if repository in names else ".themasterplan"
+                    self.assertEqual(env_file.read_text().strip(), f"POLICY_DIR=/candidate/{suffix}")
 
 
 if __name__ == "__main__":
