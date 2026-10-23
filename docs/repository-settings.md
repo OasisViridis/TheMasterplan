@@ -8,9 +8,15 @@ GitHub Template Repository 只复制仓库文件，不能保证这些服务器�
 - 尽可能禁止管理员、GitHub App 和自动化绕过规则。
 - 只启用 Squash Merge，并禁用 auto-merge。
 - Actions 调用权限：reusable workflow 与调用器只授予 `contents: read`，不传递 Secrets，不使用 `pull_request_target`。
-- Agent 凭据不得拥有 admin、merge 或 release 权限。
+- 日常 Agent 凭据保持低权限；获批事务可单独授予受限 merge/release 执行能力。
+  Agent 凭据不得拥有 admin 或绕过保护的能力；授权与实际权限分别核验。
 
 仓库文件中的规则不能替代 GitHub 服务器端保护；这些设置不由本模板自动配置。
+
+凭据切换、动作/目标限制与失效条件以 [Core Policy §1.2](../core/policy.md#12-日常凭据与获批事务的执行能力)
+为准。审核中列明的预期切换不逐步重复批准；该文字不授予平台权限，也不自动
+配置凭据服务、共享账号或降低保护规则。合并后发布的受约束候选转换按
+[Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 核验。
 
 ## 团队审阅与权限
 
