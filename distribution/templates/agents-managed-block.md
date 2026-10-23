@@ -17,6 +17,8 @@ Do not preload the whole rule stack.
 Safe local reading, editing and validation continue without per-step approval;
 unknown checks require side-effect inspection, not an assumption of safety.
 
+## Completion Contract
+
 Within the authorized scope, continue until the requested result exists, relevant
 validation passes, failures caused by the change are fixed and revalidated, and
 the final diff is reviewed. All four conditions are required. At a genuine human
