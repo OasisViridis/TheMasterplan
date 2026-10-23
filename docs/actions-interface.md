@@ -1,6 +1,6 @@
 # GitHub Actions 中央接口
 
-本源码目标为 **v5.1.2**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.2 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
+本源码目标为 **v5.1.3**；发布状态以 [GitHub Releases](https://github.com/OasisSaber/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.3 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
 
 TheMasterplan 提供集中维护、版本化发布的 GitHub Actions 可重用工作流。
 业务仓库通过 `uses` 调用，不再复制中央 CI 实现。
@@ -13,12 +13,12 @@ v1 兼容线（冻结，`policy-ref` 默认 `v1`）：
 uses: OasisSaber/TheMasterplan/.github/workflows/aw-check.yml@v1
 ```
 
-本源码目标版本（v5.1.2，tag-only 精确固定）：
+本源码目标版本（v5.1.3，tag-only 精确固定）：
 
 ```yaml
-uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.2
+uses: OasisSaber/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.3
 with:
-  policy-ref: v5.1.2
+  policy-ref: v5.1.3
 ```
 
 `aw-check.yml` 在 v1 兼容线生命周期内不得移动或重命名。工作流路径移动属
@@ -37,8 +37,8 @@ with:
 不得加入任意 `setup-command`、`check-command`、Shell 表达式、Secret 输入、
 发布或部署参数、自动合并参数或写权限开关。
 
-固定版本调用时 `policy-ref` 必须等于 `uses` 引用版本（v5.1.2 通道必须
-显式指定 `policy-ref: v5.1.2`），见 [release-channels.md](release-channels.md)。
+固定版本调用时 `policy-ref` 必须等于 `uses` 引用版本（v5.1.3 通道必须
+显式指定 `policy-ref: v5.1.3`），见 [release-channels.md](release-channels.md)。
 
 ## 固定行为
 
@@ -58,7 +58,7 @@ with:
 
 ```text
 业务仓库 .github/workflows/check.yml
-        │ uses @v1（aw-check.yml）或 @v5.1.2（themasterplan-check.yml）
+        │ uses @v1（aw-check.yml）或 @v5.1.3（themasterplan-check.yml）
         ▼
 TheMasterplan reusable workflow
         │

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "distribution_version": "v5.1.2",
+  "distribution_version": "v5.1.3",
   "source_repository": "OasisSaber/TheMasterplan",
   "required": [
     "core/workflow.md",
