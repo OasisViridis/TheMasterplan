@@ -766,6 +766,35 @@ class AdoptSafetyTests(unittest.TestCase):
         self.assertEqual(self.apply(plan)["written"], [])
         self.assertTrue(verify(self.root)["ok"])
 
+    def test_retry_refuses_missing_required_generated_target(self):
+        plan = self.plan()
+        self.apply(plan)
+        (self.root / "scripts/check.sh").unlink()
+        self.refused(plan)
+
+    def test_retry_allows_missing_optional_generated_target(self):
+        plan = self.plan()
+        self.apply(plan)
+        (self.root / ".github/workflows/check.yml").unlink()
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_unexpected_file_under_bin_stops_adoption(self):
+        target = self.root / ".themasterplan/bin/tmlib/legacy_helper.py"
+        target.parent.mkdir(parents=True)
+        target.write_text("# stale\n", encoding="utf-8")
+        plan = self.plan()
+        self.assertTrue(plan["stop_conditions"])
+        self.refused(plan)
+
+    def test_bin_path_replaced_by_file_stops_adoption_without_traceback(self):
+        target = self.root / ".themasterplan/bin"
+        target.parent.mkdir(parents=True)
+        target.write_text("not a directory\n", encoding="utf-8")
+        plan = self.plan()
+        self.assertTrue(plan["stop_conditions"])
+        self.refused(plan)
+
 
 if __name__ == "__main__":
     unittest.main()

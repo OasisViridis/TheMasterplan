@@ -12,7 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from .apply import EXECUTOR_FILES, _render_template, executor_entries
+from .apply import _render_template, executor_entries
 from .manifest import ManifestError, select_files
 from .source import DEFAULT_REPOSITORY, Source, package_manifest
 from .util import (TheMasterplanError, safe_join, sha256_of_block, sha256_of_file,
@@ -86,6 +86,20 @@ def _classify_existing(project_root: Path, destination: str, package_root: Path,
 def _has_block_markers(path: Path) -> bool:
     text = path.read_text(encoding="utf-8", errors="replace")
     return "<!-- THEMASTERPLAN:BEGIN MANAGED -->" in text and "<!-- THEMASTERPLAN:END MANAGED -->" in text
+
+
+def _unregistered_executor_present(project_root: Path) -> bool:
+    """Detect a real installation; empty directories are rollback residue."""
+    executor_root = safe_join(project_root, ".themasterplan/bin")
+    try:
+        if not executor_root.exists():
+            return False
+        if not executor_root.is_dir():
+            return True
+        return any(path.is_file() for path in executor_root.rglob("*"))
+    except OSError:
+        # A path component replaced by a regular file is still a stopped state.
+        return True
 
 
 def plan_adopt(
@@ -211,11 +225,10 @@ def plan_adopt(
         stop_conditions.append(f"conflicting managed files: {', '.join(conflicts)}")
 
     state_path = safe_join(project_root, ".themasterplan/state.json")
-    executor_root = safe_join(project_root, ".themasterplan/bin")
     if state_path.exists():
         stop_conditions.append("existing installation: use plan-update or doctor, not adoption")
-    elif any(safe_join(executor_root, relative).exists() for relative in EXECUTOR_FILES):
-        # A rollback may leave empty directories; only real executor files are an
+    elif _unregistered_executor_present(project_root):
+        # A rollback may leave empty directories; any real file under bin/ is an
         # unregistered installation that requires explicit diagnosis.
         stop_conditions.append("unregistered executor installation: explicit diagnosis required")
 

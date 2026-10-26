@@ -401,11 +401,17 @@ def apply_adopt(project_root: Path, plan_path: Path, source: Source | None = Non
         # A receipt alone is not enough: only the full, unchanged managed result
         # can retry. Project-owned and generated-if-missing files stay owned by
         # the project, so edits there do not invalidate a completed adoption.
+        # A missing required generated file (e.g. the validation entrypoint) is
+        # still drift and must not be reported as a successful retry.
         for op in plan["files"]:
-            if op["ownership"] in ("project-owned", "generated-if-missing"):
+            relative = op["destination"]
+            data = expected[relative]
+            ownership = op["ownership"]
+            if ownership in ("project-owned", "generated-if-missing"):
+                if ownership == "generated-if-missing" and op.get("required") and data is None:
+                    raise ApplyError(f"required generated target missing: {relative}")
                 continue
-            data = expected[op["destination"]]
-            current = (sha256_of_block_bytes(data) if op["ownership"] == "managed-block"
+            current = (sha256_of_block_bytes(data) if ownership == "managed-block"
                        else _sha256_bytes(data)) if data is not None else None
             if current != op.get("target_sha256"):
                 raise ApplyError(f"completed adoption target changed: {op['destination']}")

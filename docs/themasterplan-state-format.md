@@ -27,7 +27,7 @@
     "default_branch": "main"
   },
   "managed_files": {},
-  "adoption_plan_sha256": "<completed adoption plan digest or null>",
+  "adoption_plan_sha256": "<completed adoption plan digest>",
   "adoption": {
     "date": "YYYY-MM-DD",
     "platform": "<os>",
