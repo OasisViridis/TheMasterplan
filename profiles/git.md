@@ -32,12 +32,13 @@ Release。`v1` 兼容线已冻结（指向承载 v2.0.0 内容的提交），**t
 候选有两条路径：直接审核既有 `main` 完整 SHA，或先按
 [Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 完成已批准
 合并的唯一结果转换与重验。直接路径在本阶段读取并固定候选；派生路径的结果 SHA
-在合并后才存在，必须用下方“派生候选核验”块从审核记录注入，不得在本阶段读取
-当前 `main` 或 PR head 充当结果，也不因获批转换而重复请求同范围批准。
-执行身份与预期权限切换按 Core §1.2 核验。
+在合并后才存在，必须用下方“派生候选核验”块从平台合并记录取得、与审核绑定项
+核对后写入本次审核事务记录再注入，不得在本阶段读取当前 `main` 或 PR head 充当
+结果，也不因获批转换而重复请求同范围批准。执行身份与预期权限切换按 Core §1.2 核验。
 
-以下命令全部在最终发布审核前完成，不产生远端写入。使用 `set -euo pipefail`
-或每条检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
+以下直接路径命令在最终发布审核前完成；派生路径的合并记录与结果核验在人类批准
+合并后、创建 tag 前完成。两者都不产生远端写入。使用 `set -euo pipefail` 或每条
+检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
 
 ```bash
 set -euo pipefail
@@ -79,8 +80,9 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 ### 派生路径：合并记录与结果核验
 
 派生路径不执行上面的候选读取与 `APPROVED_CANDIDATE_SHA="$CANDIDATE"` 赋值。
-按 Core §2.2 合并后，用下列只读命令核验平台记录、结果树与父提交，再从审核
-记录注入固定结果 SHA；任何一项不一致、注入缺失或当前 `main` 已移动即停止：
+按 Core §2.2 合并后，用下列只读命令核验平台记录、结果树与父提交，再把平台
+合并记录的结果 SHA 与审核绑定项核对后写入本次审核事务记录并注入；任何一项
+不一致、注入缺失或当前 `main` 已移动即停止：
 
 ```bash
 set -euo pipefail
@@ -100,10 +102,13 @@ git fetch origin
 [ "$(gh pr view "$APPROVED_PR_NUMBER" --json baseRefName --jq '.baseRefName')" = "main" ] || exit 1
 [ "$(gh pr view "$APPROVED_PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
 
-# 2. 结果树与父提交：树等于审核预期树；Squash 唯一父提交等于审核 base
+# 2. 结果树与父提交：树等于审核预期树；Squash 为唯一父提交且等于审核 base
+#    （父提交数量是结构代理；平台合并事件/审计记录需另存证据）
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] || exit 1
 [ "$APPROVED_MERGE_METHOD" = "squash" ] || exit 1
+[ "$(git cat-file -p "$APPROVED_CANDIDATE_SHA" | grep -c '^parent ')" -eq 1 ] || exit 1
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^")" = "$APPROVED_BASE_SHA" ] || exit 1
+[ "$APPROVED_CANDIDATE_SHA" != "$APPROVED_HEAD_SHA" ] || exit 1
 
 # 3. 当前远端 main 必须正好等于固定结果（否则按 Core §4 停止）
 [ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
@@ -123,6 +128,7 @@ git fetch origin
 - 执行身份、预期受限凭据切换、动作/目标限制与撤销核验；
 - 即将执行的全部外部写操作与顺序（tag-only：push tag → smoke → Release）；
 - 当前验证结果；
+- 当前远端状态；
 - 停止条件；
 - 已知风险。
 

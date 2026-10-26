@@ -19,9 +19,10 @@
 候选来自直接审核的既有 main SHA，或
 [Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 核验通过的
 唯一合并结果 SHA。派生路径先核验平台记录、main、已审预期树，重新完成完整
-验证和消费者 smoke，再从审核记录注入固定 `APPROVED_CANDIDATE_SHA`；不得重跑
-候选读取块用当前 `main` 或 change 顶替，相同树不允许使用任意 change。
-执行身份与预期权限切换按 Core §1.2 核验。
+验证和消费者 smoke，再从平台合并记录取得结果 SHA、与审核绑定项核对后写入本次
+审核事务记录并注入固定 `APPROVED_CANDIDATE_SHA`；不得重跑候选读取块用当前
+`main` 或 change 顶替，相同树不允许使用任意 change。执行身份与预期权限切换按
+Core §1.2 核验。
 
 只读检查、候选解析、验证和审核材料准备不需要逐步批准。
 
@@ -39,8 +40,8 @@ jj tag list
 ### 派生路径：合并记录与结果核验
 
 派生路径不执行上面的候选读取与赋值。按 Core §2.2 合并后，用下列只读命令
-核验平台记录、结果树与父提交，再从审核记录注入固定结果 SHA；任何一项不一致、
-注入缺失或当前 `main` 已移动即停止：
+核验平台记录、结果树与父提交，再把平台合并记录的结果 SHA 与审核绑定项核对后
+写入本次审核事务记录并注入；任何一项不一致、注入缺失或当前 `main` 已移动即停止：
 
 ```bash
 set -euo pipefail
@@ -60,10 +61,13 @@ jj git fetch --remote origin
 [ "$(gh pr view "$APPROVED_PR_NUMBER" --json baseRefName --jq '.baseRefName')" = "main" ] || exit 1
 [ "$(gh pr view "$APPROVED_PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
 
-# 2. 结果树与父提交：树等于审核预期树；Squash 唯一父提交等于审核 base
+# 2. 结果树与父提交：树等于审核预期树；Squash 为唯一父提交且等于审核 base
+#    （父提交数量是结构代理；平台合并事件/审计记录需另存证据）
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] || exit 1
 [ "$APPROVED_MERGE_METHOD" = "squash" ] || exit 1
+[ "$(git cat-file -p "$APPROVED_CANDIDATE_SHA" | grep -c '^parent ')" -eq 1 ] || exit 1
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^")" = "$APPROVED_BASE_SHA" ] || exit 1
+[ "$APPROVED_CANDIDATE_SHA" != "$APPROVED_HEAD_SHA" ] || exit 1
 
 # 3. 当前远端 main 必须正好等于固定结果（否则按 Core §4 停止）
 [ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
@@ -75,8 +79,8 @@ jj git fetch --remote origin
 前缀代替完整 SHA。§2.2 派生路径在合并前审核全部绑定项与唯一转换，合并后经
 “派生候选核验”块固定结果并注入；不把 head 冒充结果、不重复批准获批范围。
 审核完整列明 `core/policy.md` §2.1 与 §2.2 的要素：`TAG`、`NOTES_FILE`、
-Notes 内容 SHA-256（最终文件字节，不规范化换行）、执行身份与预期受限凭据切换及
-撤销核验、派生路径的 PR/head/base/预期树/合并方式与重验记录、完整写操作、顺序、
+Notes 内容 SHA-256（最终文件字节，不规范化换行）、执行身份、动作/目标限制、预期
+受限凭据切换及撤销核验、派生路径的 PR/head/base/预期树/合并方式与重验记录、完整写操作、顺序、
 验证结果、当前远端状态、停止条件和已知风险。目标 tag 在本地和远端都必须不存在；
 通过 gh 核实目标 Release 不存在。网络、认证或查询失败不是“不存在”的证据，
 应停止核实。
