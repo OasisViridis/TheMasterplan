@@ -133,6 +133,17 @@ git push origin "$TAG"
 没有实际成功证据（仅有注释、计划或构造命令不算通过）时，不得运行以下命令：
 
 ```bash
+# Release 前再次复核 Notes 摘要与 tag peeled SHA（core/policy.md §2.2 第 4 步）
+if command -v sha256sum >/dev/null 2>&1; then
+  NOTES_SHA256=$(sha256sum "$NOTES_FILE" | awk '{print $1}')
+else
+  NOTES_SHA256=$(shasum -a 256 "$NOTES_FILE" | awk '{print $1}')
+fi
+[ "$NOTES_SHA256" = "$APPROVED_NOTES_SHA256" ] \
+  || { echo "Release Notes changed before Release" >&2 && exit 1; }
+TAG_COMMIT=$(git ls-remote --tags origin "refs/tags/$TAG^{}" | awk '{print $1}')
+[ "$TAG_COMMIT" = "$APPROVED_CANDIDATE_SHA" ] \
+  || { echo "tag peeled SHA differs from candidate" >&2 && exit 1; }
 gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$NOTES_FILE"
 ```
 

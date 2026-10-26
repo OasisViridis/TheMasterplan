@@ -187,6 +187,18 @@ git push origin "$TAG"
 #    测试未通过时停止并重新审核，不得创建 Release
 
 # 4. 创建 GitHub Release
+#    4.0 先在 Release 前再次复核 Notes 摘要与 tag peeled SHA（core/policy.md §2.2 第 4 步）
+if command -v sha256sum >/dev/null 2>&1; then
+  NOTES_SHA256=$(sha256sum "$NOTES_FILE" | awk '{print $1}')
+else
+  NOTES_SHA256=$(shasum -a 256 "$NOTES_FILE" | awk '{print $1}')
+fi
+[ "$NOTES_SHA256" = "$APPROVED_NOTES_SHA256" ] \
+  || { echo "Release Notes changed before Release" >&2 && exit 1; }
+TAG_COMMIT=$(git ls-remote --tags origin "refs/tags/$TAG^{}" | awk '{print $1}')
+[ "$TAG_COMMIT" = "$APPROVED_CANDIDATE_SHA" ] \
+  || { echo "tag peeled SHA differs from candidate" >&2 && exit 1; }
+
 #    --verify-tag：若 "$TAG" 尚未存在于远端则中止（gh CLI 选项，
 #    与本地 GPG 验证无关）
 gh release create "$TAG" \
