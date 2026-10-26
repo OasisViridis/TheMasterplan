@@ -577,6 +577,10 @@ class AdoptSafetyTests(unittest.TestCase):
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
                 for p in self.root.rglob("*") if p.is_file()}
 
+    def dirs(self):
+        return {p.relative_to(self.root).as_posix()
+                for p in self.root.rglob("*") if p.is_dir()}
+
     def apply(self, plan, **kwargs):
         write_json_atomic(self.plan_path, plan)
         return apply_adopt(self.root, self.plan_path, self.source, **kwargs)
@@ -665,6 +669,26 @@ class AdoptSafetyTests(unittest.TestCase):
         manifest.write_bytes(manifest.read_bytes() + b"\n")
         self.refused(plan)
 
+    def test_missing_generated_template_is_a_planning_error(self):
+        (self.package / "distribution/templates/consumer-workflow.yml").unlink()
+        with self.assertRaises(TheMasterplanError):
+            self.plan()
+
+    def test_target_appearing_after_plan_is_refused_without_writes(self):
+        plan = self.plan()
+        target = self.root / "core/policy.md"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"# appeared after planning\n")
+        self.refused(plan)
+
+    def test_existing_managed_target_change_after_plan_is_refused_without_writes(self):
+        target = self.root / "core/policy.md"
+        target.parent.mkdir(parents=True)
+        target.write_bytes((self.package / "core/policy.md").read_bytes())
+        plan = self.plan()
+        target.write_bytes(b"# edited after plan\n")
+        self.refused(plan)
+
     def test_complete_block_retry_keeps_project_content_and_detects_drift(self):
         target = self.root / "AGENTS.md"
         target.write_bytes(b"header\r\n<!-- THEMASTERPLAN:BEGIN MANAGED -->old<!-- THEMASTERPLAN:END MANAGED -->\r\nfooter")
@@ -702,10 +726,45 @@ class AdoptSafetyTests(unittest.TestCase):
 
         write_json_atomic(self.plan_path, plan)
         before = self.snapshot()
+        before_dirs = self.dirs()
         with mock.patch("tmlib.util.write_bytes_atomic", side_effect=fail_once):
             with self.assertRaises(TheMasterplanError):
                 apply_adopt(self.root, self.plan_path, self.source)
         self.assertEqual(before, self.snapshot())
+        # Rolled-back adoption must not leave an empty executor skeleton behind:
+        # such residue would be diagnosed as an unregistered installation.
+        self.assertEqual(before_dirs, self.dirs())
+        retry = self.plan()
+        self.assertEqual(retry["stop_conditions"], [])
+        self.assertTrue(self.apply(retry)["written"])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_empty_executor_directories_do_not_block_adoption(self):
+        (self.root / ".themasterplan/bin/tmlib").mkdir(parents=True)
+        plan = self.plan()
+        self.assertEqual(plan["stop_conditions"], [])
+        self.apply(plan)
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_retry_tolerates_project_edits_to_kept_generated_file(self):
+        check = self.root / "scripts/check.sh"
+        check.parent.mkdir(parents=True)
+        check.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+        plan = self.plan()
+        self.assertIn("EXISTS_KEEP", {op["classification"] for op in plan["files"]})
+        self.apply(plan)
+        check.write_bytes(check.read_bytes() + b"# project addition\n")
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_retry_tolerates_project_edits_to_generated_file(self):
+        plan = self.plan()
+        self.apply(plan)
+        check = self.root / "scripts/check.sh"
+        self.assertTrue(check.is_file())
+        check.write_bytes(check.read_bytes() + b"# project addition\n")
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertTrue(verify(self.root)["ok"])
 
 
 if __name__ == "__main__":

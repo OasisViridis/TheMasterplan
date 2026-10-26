@@ -12,7 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from .apply import executor_entries, _render_template
+from .apply import EXECUTOR_FILES, _render_template, executor_entries
 from .manifest import ManifestError, select_files
 from .source import DEFAULT_REPOSITORY, Source, package_manifest
 from .util import (TheMasterplanError, safe_join, sha256_of_block, sha256_of_file,
@@ -174,6 +174,9 @@ def plan_adopt(
         if dest in existing_dests or any(g["destination"] == dest for g in generated):
             continue
         exists = _safe_exists(project_root, dest)
+        source_hash = _package_hash(package_root, template)
+        if source_hash is None:
+            raise PlanningError(f"package template missing: {template}")
         generated.append(
             {
                 "source": template,
@@ -181,7 +184,7 @@ def plan_adopt(
                 "ownership": "generated-if-missing",
                 "required": dest == validation_path,
                 "classification": "EXISTS_KEEP" if exists else "ADD",
-                "source_sha256": _package_hash(package_root, template),
+                "source_sha256": source_hash,
                 "observed_sha256": _observed_hash(project_root, dest, "generated-if-missing") if exists else None,
                 "render": dest == ".github/workflows/check.yml",
             }
@@ -208,9 +211,12 @@ def plan_adopt(
         stop_conditions.append(f"conflicting managed files: {', '.join(conflicts)}")
 
     state_path = safe_join(project_root, ".themasterplan/state.json")
+    executor_root = safe_join(project_root, ".themasterplan/bin")
     if state_path.exists():
         stop_conditions.append("existing installation: use plan-update or doctor, not adoption")
-    elif safe_join(project_root, ".themasterplan/bin").exists():
+    elif any(safe_join(executor_root, relative).exists() for relative in EXECUTOR_FILES):
+        # A rollback may leave empty directories; only real executor files are an
+        # unregistered installation that requires explicit diagnosis.
         stop_conditions.append("unregistered executor installation: explicit diagnosis required")
 
     selection = {"profile": profile, "validation_path": validation_path,
@@ -219,7 +225,11 @@ def plan_adopt(
         if op["classification"] in ("EXISTS_KEEP", "PROJECT_OWNED"):
             op["target_sha256"] = op.get("observed_sha256")
         else:
-            content = safe_join(package_root, op["source"]).read_bytes()
+            source_path = safe_join(package_root, op["source"])
+            try:
+                content = source_path.read_bytes()
+            except OSError as error:
+                raise PlanningError(f"package source file missing: {op['source']}") from error
             if op.get("render"):
                 content = _render_template(content, {"selection": selection})
             op["target_sha256"] = (sha256_of_block_bytes(content)

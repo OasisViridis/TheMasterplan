@@ -12,8 +12,6 @@ from .util import (
     safe_join,
     sha256_of_block,
     sha256_of_file,
-    write_bytes_atomic,
-    write_json_atomic,
     validate_relative_path,
     validate_target_paths,
     validate_state,
@@ -218,30 +216,6 @@ def _make_minimal_agents(block_content: bytes) -> bytes:
     ).encode("utf-8")
 
 
-def _apply_block(
-    project_root: Path,
-    operation: dict,
-    block_content: bytes,
-) -> None:
-    destination = safe_join(project_root, operation["destination"])
-    data = destination.read_bytes()
-    bounds = _block_bounds_bytes(data)
-    if bounds is None:
-        raise ApplyError(
-            "managed block markers invalid: "
-            f"{operation['destination']}"
-        )
-    begin, end = bounds
-    content_end = block_content.find(BLOCK_END_BYTES)
-    if content_end < 0:
-        raise ApplyError(
-            f"managed block template missing END marker: "
-            f"{operation['source']}"
-        )
-    block = block_content[: content_end + len(BLOCK_END_BYTES)]
-    write_bytes_atomic(destination, data[:begin] + block + data[end:])
-
-
 def _prepare_sources(
     plan: dict,
     package_root: Path | None,
@@ -279,15 +253,6 @@ def _executor_root(source: Source | None) -> Path:
     raise ApplyError(
         "source package does not contain the TheMasterplan executor"
     )
-
-
-def prepare_executor_bundle(source: Source | None) -> dict[str, bytes]:
-    """Read every executor file before the first executor write."""
-    root = _executor_root(source)
-    prepared: dict[str, bytes] = {}
-    for relative in EXECUTOR_FILES:
-        prepared[relative] = read_package_file(root, relative)
-    return prepared
 
 
 def executor_entries(source: Source) -> list[dict]:
@@ -433,8 +398,12 @@ def apply_adopt(project_root: Path, plan_path: Path, source: Source | None = Non
         if (state.get("adoption_plan_sha256") != digest or state["source"] != plan["source"]
                 or state["selection"] != plan["selection"]):
             raise ApplyError("existing installation: use plan-update or doctor, not adoption")
-        # A receipt alone is not enough: only the full, unchanged result can retry.
+        # A receipt alone is not enough: only the full, unchanged managed result
+        # can retry. Project-owned and generated-if-missing files stay owned by
+        # the project, so edits there do not invalidate a completed adoption.
         for op in plan["files"]:
+            if op["ownership"] in ("project-owned", "generated-if-missing"):
+                continue
             data = expected[op["destination"]]
             current = (sha256_of_block_bytes(data) if op["ownership"] == "managed-block"
                        else _sha256_bytes(data)) if data is not None else None
