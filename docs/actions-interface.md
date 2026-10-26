@@ -10,8 +10,12 @@ TheMasterplan 提供集中维护、版本化发布的 GitHub Actions 可重用�
 v1 兼容线（冻结，`policy-ref` 默认 `v1`）：
 
 ```yaml
-uses: OasisSaber/TheMasterplan/.github/workflows/aw-check.yml@v1
+uses: OasisViridis/TheMasterplan/.github/workflows/aw-check.yml@v1
 ```
+
+GitHub Actions 不为已改名仓库的 `uses:`（action / reusable workflow）提供重定向：
+旧 owner `OasisSaber` 的 `uses:` 会以 repository not found 失败，v1 兼容线必须用
+当前 owner `OasisViridis` 调用。`v1` 是冻结分支（`refs/heads/v1`），不是 Tag。
 
 本源码目标版本（v5.1.3，tag-only 精确固定）：
 

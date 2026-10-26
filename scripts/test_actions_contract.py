@@ -7,7 +7,10 @@ from pathlib import Path
 
 import yaml
 
-from scripts.test_check_entry import BASH
+try:
+    from scripts.test_check_entry import BASH
+except ModuleNotFoundError:  # direct execution: sys.path[0] is scripts/
+    from test_check_entry import BASH
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/themasterplan-check.yml"
@@ -140,6 +143,10 @@ class ActionsContractTests(unittest.TestCase):
         self.assertEqual(checkout["if"], "github.repository_id != '1309061768'")
         self.assertEqual(checkout["with"]["repository"], "OasisViridis/TheMasterplan")
         self.assertEqual(checkout["with"]["ref"], "${{ inputs.policy-ref }}")
+        # Both the workflow step env and the shared literal must stay wired.
+        self.assertEqual(selection["env"]["POLICY_REF"], "${{ inputs.policy-ref }}")
+        self.assertIn("1309061768", checkout["if"])
+        self.assertIn("1309061768", selection["run"])
         # The ID is stable across renames; a same-name third-party repo is not self.
         cases = (
             ("1309061768", "OasisViridis/TheMasterplan", "project", "candidate"),
@@ -167,6 +174,8 @@ class ActionsContractTests(unittest.TestCase):
     def test_check_summary_reports_policy_source_without_stale_ref(self):
         steps = self.check["steps"]
         summary = next(s for s in steps if s["name"] == "Write check summary")
+        self.assertEqual(summary["env"]["POLICY_SOURCE"], "${{ env.POLICY_SOURCE }}")
+        self.assertEqual(summary["env"]["POLICY_REF"], "${{ inputs.policy-ref }}")
         cases = (("candidate", False), ("central:v1", True))
         with tempfile.TemporaryDirectory() as tmp:
             for source, expects_ref in cases:
@@ -184,6 +193,37 @@ class ActionsContractTests(unittest.TestCase):
                     self.assertIn(f"- Policy source: `{source}`", text)
                     self.assertIn("- Caller: `caller/App`", text)
                     self.assertEqual("Policy ref" in text, expects_ref)
+
+    def test_selection_to_summary_chain_propagates_policy_source(self):
+        steps = self.check["steps"]
+        selection = next(s for s in steps if s["name"] == "Select policy source")
+        summary = next(s for s in steps if s["name"] == "Write check summary")
+        with tempfile.TemporaryDirectory() as tmp:
+            env_file = Path(tmp) / "env"
+            env_file.write_bytes(b"")
+            env = {**os.environ, "GITHUB_REPOSITORY": "OasisViridis/TheMasterplan",
+                   "GITHUB_REPOSITORY_ID": "1309061768",
+                   "GITHUB_WORKSPACE": "/candidate", "GITHUB_ENV": env_file.as_posix(),
+                   "POLICY_REF": "v1"}
+            result = subprocess.run([BASH, "-c", selection["run"]], env=env,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            values = dict(line.split("=", 1)
+                          for line in env_file.read_text(encoding="utf-8").splitlines())
+            out = Path(tmp) / "summary"
+            out.write_bytes(b"")
+            env = {**os.environ, "GITHUB_REPOSITORY": "OasisViridis/TheMasterplan",
+                   "GITHUB_STEP_SUMMARY": out.as_posix(),
+                   "POLICY_SOURCE": values["POLICY_SOURCE"],
+                   "POLICY_REF": values.get("POLICY_REF", ""),
+                   "PROJECT_CHECK_PATH": "scripts/check.sh"}
+            result = subprocess.run([BASH, "-c", summary["run"]], env=env,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            text = out.read_text(encoding="utf-8")
+            self.assertEqual(values["POLICY_SOURCE"], "candidate")
+            self.assertIn("- Policy source: `candidate`", text)
+            self.assertNotIn("Policy ref", text)
 
 
 if __name__ == "__main__":
