@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -231,19 +232,24 @@ class ContextMinimalContractTests(unittest.TestCase):
         body = (ROOT / "profiles/jj.md").read_text(encoding="utf-8")
         execution = body.split("## 阶段 C：", 1)[1]
         block = execution.split("```bash\n", 1)[1].split("```", 1)[0]
-        stubs = r'''
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            notes = Path(temporary_directory) / "notes.md"
+            notes.write_bytes(b"documented release notes\n")
+            notes_digest = hashlib.sha256(notes.read_bytes()).hexdigest()
+            stubs = f'''
 APPROVED_CANDIDATE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 TAG=v99.0.0
-NOTES_FILE=notes.md
-git() {
+NOTES_FILE="{notes.as_posix()}"
+APPROVED_NOTES_SHA256={notes_digest}
+git() {{
   case "$1" in
     ls-remote) case "$*" in *refs/heads/main*) echo "$APPROVED_CANDIDATE_SHA";; esac;;
     tag) [ "$2" = "--list" ] || echo "WRITE tag";;
     push) echo "WRITE push";;
   esac
   return 0
-}
-gh() {
+}}
+gh() {{
   if [ "$1" = "repo" ]; then
     [ "$MODE" != "repo-error" ] || return 1
     echo fixture/example
@@ -252,20 +258,27 @@ gh() {
     [ "$MODE" != "existing" ] || echo "$TAG"
     return 0
   fi
-}
+}}
 '''
-        for mode in ("repo-error", "api-error", "existing", "absent"):
-            with self.subTest(mode=mode):
-                result = subprocess.run(
-                    [BASH, "-c", f"MODE={mode}\n" + stubs + block],
-                    capture_output=True, text=True, encoding="utf-8", check=False,
-                )
-                if mode == "absent":
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(result.stdout.splitlines(), ["WRITE tag", "WRITE push"])
-                else:
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertNotIn("WRITE", result.stdout)
+            for mode in ("repo-error", "api-error", "existing", "absent"):
+                with self.subTest(mode=mode):
+                    result = subprocess.run(
+                        [BASH, "-c", f"MODE={mode}\n" + stubs + block],
+                        capture_output=True, text=True, encoding="utf-8", check=False,
+                    )
+                    if mode == "absent":
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout.splitlines(), ["WRITE tag", "WRITE push"])
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertNotIn("WRITE", result.stdout)
+            drifted = subprocess.run(
+                [BASH, "-c", "MODE=absent\n"
+                 + stubs.replace(notes_digest, "0" * 64) + block],
+                capture_output=True, text=True, encoding="utf-8", check=False,
+            )
+            self.assertNotEqual(drifted.returncode, 0)
+            self.assertNotIn("WRITE", drifted.stdout)
 
     def test_v41_old_executor_selection_gate_accepts_v5_manifest(self) -> None:
         """Freeze the v4.1 manifest gate needed for the major-version bridge.

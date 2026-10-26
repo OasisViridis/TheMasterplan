@@ -73,7 +73,8 @@ main 完成实现与验证
         ↓
 独立消费者 smoke 测试
         ↓
-最终发布审核（版本号、候选 = 最新 origin/main、tag、Release Notes、全部写操作与顺序）
+最终发布审核（版本号、候选 = 最新 origin/main 或 Core §2.2 核验后的合并结果 SHA、
+tag、Release Notes、全部写操作与顺序）
         ↓
 人类一次批准完整发布事务（一次聚合授权，不重复询问）
         ↓

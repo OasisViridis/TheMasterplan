@@ -29,8 +29,16 @@ Release。`v1` 兼容线已冻结（指向承载 v2.0.0 内容的提交），**t
 
 ## 阶段 A：发布前检查（只读）
 
-以下命令全部在最终发布审核前完成，不产生远端写入。使用 `set -euo pipefail`
-或每条检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
+候选有两条路径：直接审核既有 `main` 完整 SHA，或先按
+[Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 完成已批准
+合并的唯一结果转换与重验。直接路径在本阶段读取并固定候选；派生路径的结果 SHA
+在合并后才存在，必须用下方“派生候选核验”块从平台合并记录取得、与审核绑定项
+核对后写入本次审核事务记录再注入，不得在本阶段读取当前 `main` 或 PR head 充当
+结果，也不因获批转换而重复请求同范围批准。执行身份与预期权限切换按 Core §1.2 核验。
+
+以下直接路径命令在最终发布审核前完成；派生路径的合并记录与结果核验在人类批准
+合并后、创建 tag 前完成。两者都不产生远端写入。使用 `set -euo pipefail` 或每条
+检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
 
 ```bash
 set -euo pipefail
@@ -69,17 +77,63 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 
 任一检查失败即停止：报告给人类并等待重新审核。
 
+### 派生路径：合并记录与结果核验
+
+派生路径不执行上面的候选读取与 `APPROVED_CANDIDATE_SHA="$CANDIDATE"` 赋值。
+按 Core §2.2 合并后，用下列只读命令核验平台记录、结果树与父提交，再把平台
+合并记录的结果 SHA 与审核绑定项核对后写入本次审核事务记录并注入；任何一项
+不一致、注入缺失或当前 `main` 已移动即停止：
+
+```bash
+set -euo pipefail
+APPROVED_PR_NUMBER="${APPROVED_PR_NUMBER:?set the approved PR number}"
+APPROVED_HEAD_SHA="${APPROVED_HEAD_SHA:?set the review-time PR head SHA}"
+APPROVED_BASE_SHA="${APPROVED_BASE_SHA:?set the review-time base SHA}"
+APPROVED_RESULT_TREE="${APPROVED_RESULT_TREE:?set the reviewed expected result tree}"
+APPROVED_MERGE_METHOD="${APPROVED_MERGE_METHOD:?set the approved merge method}"
+APPROVED_CANDIDATE_SHA="${APPROVED_CANDIDATE_SHA:?set the fixed merged result SHA}"
+
+git fetch origin
+
+# 1. 平台记录：PR 已合并到 main，head/base 与审核一致，mergeCommit 等于固定结果
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json state --jq '.state')" = "MERGED" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json headRefOid --jq '.headRefOid')" = "$APPROVED_HEAD_SHA" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json baseRefOid --jq '.baseRefOid')" = "$APPROVED_BASE_SHA" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json baseRefName --jq '.baseRefName')" = "main" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
+
+# 2. 结果树与父提交：树等于审核预期树；Squash 为唯一父提交且等于审核 base
+#    （git rev-list 计数避免提交消息干扰；平台合并事件/审计记录需另存证据）
+[ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] || exit 1
+[ "$APPROVED_MERGE_METHOD" = "squash" ] || exit 1
+[ "$(git rev-list --parents -n 1 "$APPROVED_CANDIDATE_SHA" | wc -w)" -eq 2 ] || exit 1
+[ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^")" = "$APPROVED_BASE_SHA" ] || exit 1
+[ "$APPROVED_CANDIDATE_SHA" != "$APPROVED_HEAD_SHA" ] || exit 1
+
+# 3. 当前远端 main 必须正好等于固定结果（否则按 Core §4 停止）
+[ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
+```
+
+其他合并方式须在审核中另行列明可执行核验；未列明即不得走派生路径。
+
 ### 最终发布审核必须包含
 
 - 发布版本号（`$TAG`）；
-- 候选 commit SHA（`APPROVED_CANDIDATE_SHA`，等于最新 `origin/main`）；
+- 直接路径列完整候选 SHA（`APPROVED_CANDIDATE_SHA`，等于最新 `origin/main`）；
+  派生路径合并前列 Core §2.2 全部绑定项与唯一转换，合并后经“派生候选核验”块
+  固定并核验结果 SHA；
+- 合并方式与派生路径的父提交核验（Squash 时唯一父提交等于审核 base）；
 - Release Notes 状态与 `NOTES_FILE` 路径；
+- Notes 内容 SHA-256（对最终文件字节计算，不规范化换行）与漂移处理；
+- 执行身份、预期受限凭据切换、动作/目标限制与撤销核验；
 - 即将执行的全部外部写操作与顺序（tag-only：push tag → smoke → Release）；
 - 当前验证结果；
+- 当前远端状态；
 - 停止条件；
 - 已知风险。
 
-缺少关键目标或操作范围时，不得请求发布授权。
+完整审核清单以 `core/policy.md` §2.1 与 §2.2 为准；缺少关键目标或操作范围时，
+不得请求发布授权。
 
 ## 阶段 C：执行已批准操作
 
@@ -88,6 +142,11 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 
 ```bash
 set -euo pipefail
+APPROVED_CANDIDATE_SHA="${APPROVED_CANDIDATE_SHA:?set the approved full result SHA from the audit record}"
+# 该变量只能来自审核记录；不得在本块重新读取或推导候选。
+TAG="${TAG:?set the approved release tag}"
+NOTES_FILE="${NOTES_FILE:?set the approved notes file}"
+APPROVED_NOTES_SHA256="${APPROVED_NOTES_SHA256:?set the reviewed Release Notes SHA-256}"
 
 # 0. 执行前重新 fetch 并核验授权基线（core/policy.md §4 失效检测）
 git fetch origin
@@ -102,6 +161,20 @@ if gh release view "$TAG" >/dev/null 2>&1; then
   echo "release created since approval: $TAG" >&2 && exit 1
 fi
 
+# 0.5 在任何远端写入前复核 Notes 摘要与（派生路径的）结果树，避免 tag 已 push 后
+#     才发现漂移。摘要口径：对 NOTES_FILE 的字节直接计算，不规范化换行。
+if command -v sha256sum >/dev/null 2>&1; then
+  NOTES_SHA256=$(sha256sum "$NOTES_FILE" | awk '{print $1}')
+else
+  NOTES_SHA256=$(shasum -a 256 "$NOTES_FILE" | awk '{print $1}')
+fi
+[ "$NOTES_SHA256" = "$APPROVED_NOTES_SHA256" ] \
+  || { echo "Release Notes changed since approval" >&2 && exit 1; }
+if [ -n "${APPROVED_RESULT_TREE:-}" ]; then
+  [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] \
+    || { echo "candidate tree differs from reviewed result" >&2 && exit 1; }
+fi
+
 # 1. 创建普通 annotated tag（必须带注解，禁止轻量 tag 用于发布；
 #    不强制要求 GPG 签名）
 git tag -a "$TAG" -m "Release $TAG" "$APPROVED_CANDIDATE_SHA"
@@ -114,6 +187,18 @@ git push origin "$TAG"
 #    测试未通过时停止并重新审核，不得创建 Release
 
 # 4. 创建 GitHub Release
+#    4.0 先在 Release 前再次复核 Notes 摘要与 tag peeled SHA（core/policy.md §2.2 第 4 步）
+if command -v sha256sum >/dev/null 2>&1; then
+  NOTES_SHA256=$(sha256sum "$NOTES_FILE" | awk '{print $1}')
+else
+  NOTES_SHA256=$(shasum -a 256 "$NOTES_FILE" | awk '{print $1}')
+fi
+[ "$NOTES_SHA256" = "$APPROVED_NOTES_SHA256" ] \
+  || { echo "Release Notes changed before Release" >&2 && exit 1; }
+TAG_COMMIT=$(git ls-remote --tags origin "refs/tags/$TAG^{}" | awk '{print $1}')
+[ "$TAG_COMMIT" = "$APPROVED_CANDIDATE_SHA" ] \
+  || { echo "tag peeled SHA differs from candidate" >&2 && exit 1; }
+
 #    --verify-tag：若 "$TAG" 尚未存在于远端则中止（gh CLI 选项，
 #    与本地 GPG 验证无关）
 gh release create "$TAG" \
