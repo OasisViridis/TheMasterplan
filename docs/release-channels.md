@@ -23,8 +23,18 @@ v1.1.0      历史不可变 Release tag（工作流路径 aw-check.yml）
 v1 兼容线（`policy-ref` 默认 `v1`）：
 
 ```yaml
-uses: OasisSaber/TheMasterplan/.github/workflows/aw-check.yml@v1
+uses: OasisViridis/TheMasterplan/.github/workflows/aw-check.yml@v1
 ```
+
+GitHub Actions 不为已改名仓库的 `uses:`（action / reusable workflow）提供重定向：
+旧 owner `OasisSaber` 的 `uses:` 会以 repository not found 失败，必须改用当前 owner
+`OasisViridis`。`v1` 是冻结分支（`refs/heads/v1`），不是 Tag。v1 兼容线内部仍以
+`repository: OasisSaber/AgenticWonderwall` 检出策略脚本（历史 owner 名；`OasisSaber`
+当前已不是有效账号），该 checkout 目前仍可经旧名访问（GitHub 内部重定向/解析）；
+旧 owner 被他人注册时既可能断流，也可能改变实际检出内容。需要不依赖旧名的消费者
+应固定到内部引用已改为 `OasisViridis` 的版本（当前 `main`，或下一个包含该修复的
+Tag）；已发布 v5.1.0–v5.1.3 Tag 的工作流内部仍写旧 owner，固定这些 Tag 仍依赖
+重定向；自行镜像 v1 时必须同步修正内部的 `repository:` 与自身识别条件。
 
 本源码目标版（Tag 发布后新采用，tag-only 精确固定）：
 
@@ -48,7 +58,7 @@ with:
 v1 兼容线：
 
 ```yaml
-uses: OasisSaber/TheMasterplan/.github/workflows/aw-check.yml@v1.1.0
+uses: OasisViridis/TheMasterplan/.github/workflows/aw-check.yml@v1.1.0
 with:
   policy-ref: v1.1.0
   project-check-path: scripts/check.sh
@@ -97,7 +107,9 @@ Agent 连续执行：创建并 push annotated tag → 固定 tag 消费者 smoke
 - 禁止 Agent 凭据更新；
 - 禁止直接在 `v1` 开发。
 
-`policy-ref` 默认值保持 `v1`：`@v1` 永远解析到冻结指向的 `aw-check.yml`，现有消费者无需改动。
+`policy-ref` 默认值保持 `v1`：`@v1` 解析到冻结分支上的 `aw-check.yml`；改名后
+`uses:` 必须使用当前 owner `OasisViridis`，仍复制旧 owner `uses:` 的消费者需按本页
+示例前向修复（GitHub Actions 不重定向已改名仓库的 `uses:`）。
 
 ## 回退流程
 

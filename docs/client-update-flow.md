@@ -125,7 +125,7 @@ repository）。被本地修改的文件不会被覆盖（`LOCAL_MODIFIED` 停�
 ### v5.1.0 更新安全修复
 
 以下行为属于 v5.1.0 源码；发布状态以对应 Release 与不可变 Tag 实核。
-不移动 `v5.0.0` 或 `v1` Tag，也不会自动更新已经安装的旧执行器。采用前先审核并取得精确候选源码，使用该候选中的执行器重新
+不移动 `v5.0.0` Tag 或 `v1` 冻结分支，也不会自动更新已经安装的旧执行器。采用前先审核并取得精确候选源码，使用该候选中的执行器重新
 生成计划并请求应用批准；仅把 `--source` 换成新包、仍运行旧执行器，不能获得
 新执行器的安全检查。不得未经授权覆盖本地修补的 `.themasterplan/bin/`。
 
@@ -183,11 +183,18 @@ State 记录同一计划的完成摘要。仅当受管结果、来源、选择�
 `source_repository` 构造 Source，并验证版本、完整 SHA 与内容。历史包、State
 与缓存登记保留原身份，不全局改写；其他 owner/repo 的不匹配仍拒绝。
 缓存按请求的定位名称与 commit 隔离，别名不让一个包冒用另一个包的来源。
-已发布 Tag 内容中的历史 owner 引用（如 `v1`、`v5.1.0`–`v5.1.3` 的 `uses:` 与
-`repository:`）目前依赖 GitHub 改名重定向才能解析；新引用一律使用当前托管名。
+历史 owner 形式的 Actions 引用不能直接沿用：GitHub Actions 不为已改名仓库的
+`uses:`（action / reusable workflow）提供重定向，旧 owner `OasisSaber` 的 `uses:`
+会以 repository not found 失败，必须改用当前托管名 `OasisViridis/TheMasterplan`。
+`repository:` 输入与 git/API/codeload 路径目前仍可经旧名访问（GitHub 内部重定向/
+解析），但旧 owner 名一旦被他人注册就会失效，不能作为长期契约。`v1` 兼容线是冻结分支
+（`refs/heads/v1`）而非 Tag；`v1.1.0` 是历史 Tag。已复制旧 owner `uses:` 的采用
+项目应改为当前托管名；已发布 Tag 内容不移动、不覆盖，其示例按消费者前向修复处理。
 执行器的默认定位名仍是历史名，可用 `--repository OasisViridis/TheMasterplan`
-显式指定。下文及已有状态示例中的历史来源名继续有效；当前 Actions 调用使用当前
-托管名。此兼容规则只属于候选执行器，已发布执行器必须按其原契约使用。
+显式指定。来源解析中的历史定位别名仍有效；此兼容规则只属于候选执行器，已发布
+执行器必须按其原契约使用。官方说明见
+[Reusing workflow configurations](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations)
+与 [Renaming a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)。
 
 升级执行器不会修改业务仓库的 GitHub Actions。采用者或获明确批准的 Agent
 按审核范围同步：
