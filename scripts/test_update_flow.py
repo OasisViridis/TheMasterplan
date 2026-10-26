@@ -18,6 +18,7 @@ import tarfile
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -129,8 +130,72 @@ class HttpServerTest(unittest.TestCase):
             with self.assertRaises(SourceError):
                 resolve_remote("OasisSaber/TheMasterplan", "main", Path(tmp) / "cache")
 
+    def test_current_locator_keeps_manifest_identity_and_compatible_cache(self):
+        from tmlib import source as source_mod
+        url = f"http://127.0.0.1:{self.port}/archive.tar.gz"
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(source_mod, "ARCHIVE_URL", url):
+            cache = Path(tmp)
+            src = resolve_remote("OasisViridis/TheMasterplan", TEST_COMMIT, cache,
+                                 expected_version=MANIFEST_VERSION)
+            self.assertEqual(src.repository, "OasisSaber/TheMasterplan")
+            marker = json.loads((src.package_root / source_mod.SOURCE_MARKER).read_text())
+            self.assertEqual(marker["repository"], "OasisViridis/TheMasterplan")
+            with mock.patch.object(source_mod, "_extract_archive", side_effect=AssertionError("cache miss")):
+                cached = resolve_remote("OasisViridis/TheMasterplan", TEST_COMMIT, cache,
+                                        expected_version=MANIFEST_VERSION)
+            self.assertEqual(cached, src)
+            legacy = resolve_remote("OasisSaber/TheMasterplan", TEST_COMMIT, cache,
+                                    expected_version=MANIFEST_VERSION)
+            self.assertEqual(legacy.repository, src.repository)
+            self.assertNotEqual(legacy.package_root, src.package_root)
+
+    def test_alias_requests_preserve_locator_and_tag_commit_lock(self):
+        from tmlib import source as source_mod
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(source_mod, "_resolve_tag_commit", return_value=TEST_COMMIT) as lookup, \
+                 mock.patch.object(source_mod, "_download_archive", return_value=self.archive) as download:
+                src = resolve_remote("OasisViridis/TheMasterplan", MANIFEST_VERSION, Path(tmp),
+                                     commit=TEST_COMMIT)
+            lookup.assert_called_once_with("OasisViridis/TheMasterplan", MANIFEST_VERSION)
+            self.assertIn(f"OasisViridis/TheMasterplan/tar.gz/{TEST_COMMIT}", download.call_args.args[0])
+            self.assertEqual(src.repository, "OasisSaber/TheMasterplan")
+
+    def test_alias_does_not_weaken_version_commit_or_unrelated_identity(self):
+        from tmlib import source as source_mod
+        url = f"http://127.0.0.1:{self.port}/archive.tar.gz"
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(source_mod, "ARCHIVE_URL", url):
+            for repository, kwargs in (("someone/TheMasterplan", {}),
+                                        ("OasisViridis/TheMasterplan", {"expected_version": "v99.0.0"}),
+                                        ("OasisViridis/TheMasterplan", {"commit": "c" * 40})):
+                with self.subTest(repository=repository, kwargs=kwargs):
+                    with self.assertRaises(SourceError):
+                        resolve_remote(repository, TEST_COMMIT, Path(tmp), **kwargs)
+
+    def test_alias_cache_with_unrelated_manifest_still_rejected(self):
+        from tmlib import source as source_mod
+        url = f"http://127.0.0.1:{self.port}/archive.tar.gz"
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(source_mod, "ARCHIVE_URL", url):
+            src = resolve_remote("OasisViridis/TheMasterplan", TEST_COMMIT, Path(tmp))
+            manifest_path = src.package_root / "distribution/manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["source_repository"] = "someone/TheMasterplan"
+            write_json_atomic(manifest_path, manifest)
+            marker_path = src.package_root / source_mod.SOURCE_MARKER
+            marker = json.loads(marker_path.read_text())
+            marker["tree_sha256"] = source_mod._tree_digest(src.package_root)
+            write_json_atomic(marker_path, marker)
+            with self.assertRaises(SourceError):
+                resolve_remote("OasisViridis/TheMasterplan", TEST_COMMIT, Path(tmp))
+
 
 class ResolveLocalTest(unittest.TestCase):
+    def test_explicit_local_locator_preserves_manifest_identity(self):
+        for name in ("OasisViridis/TheMasterplan", "OasisSaber/TheMasterplan"):
+            src = resolve_source(str(PACKAGE_ROOT), commit=TEST_COMMIT, expected_repository=name)
+            self.assertEqual(src.repository, "OasisSaber/TheMasterplan")
+        with self.assertRaises(SourceError):
+            resolve_source(str(PACKAGE_ROOT), commit=TEST_COMMIT,
+                           expected_repository="someone/TheMasterplan")
     def test_resolve_local_with_explicit_commit(self) -> None:
         src = resolve_local(PACKAGE_ROOT, commit=TEST_COMMIT)
         self.assertEqual(src.commit, TEST_COMMIT)
