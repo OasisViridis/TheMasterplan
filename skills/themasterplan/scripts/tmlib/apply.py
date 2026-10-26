@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from .source import Source, read_package_file
@@ -11,10 +12,11 @@ from .util import (
     safe_join,
     sha256_of_block,
     sha256_of_file,
-    write_bytes_atomic,
-    write_json_atomic,
     validate_relative_path,
     validate_target_paths,
+    validate_state,
+    apply_file_changes,
+    sha256_of_block_bytes,
 )
 
 BLOCK_BEGIN = "<!-- THEMASTERPLAN:BEGIN MANAGED -->"
@@ -56,6 +58,13 @@ def _validate_plan(plan: dict) -> None:
         raise ApplyError("unsupported plan: schema_version/plan_type mismatch")
     if not isinstance(plan.get("selection"), dict) or plan["selection"].get("profile") not in ("git", "jj"):
         raise ApplyError("plan selection requires git or jj profile")
+    if set(plan["selection"]) != {"profile", "validation_path", "default_branch"}:
+        raise ApplyError("plan selection fields differ; regenerate and review")
+    for key in ("validation_path", "default_branch"):
+        value = plan["selection"].get(key)
+        if not isinstance(value, str) or not value:
+            raise ApplyError(f"plan selection missing {key}")
+        validate_relative_path(value)
     for key in ("source", "selection", "files"):
         if key not in plan:
             raise ApplyError(f"plan missing key: {key}")
@@ -207,30 +216,6 @@ def _make_minimal_agents(block_content: bytes) -> bytes:
     ).encode("utf-8")
 
 
-def _apply_block(
-    project_root: Path,
-    operation: dict,
-    block_content: bytes,
-) -> None:
-    destination = safe_join(project_root, operation["destination"])
-    data = destination.read_bytes()
-    bounds = _block_bounds_bytes(data)
-    if bounds is None:
-        raise ApplyError(
-            "managed block markers invalid: "
-            f"{operation['destination']}"
-        )
-    begin, end = bounds
-    content_end = block_content.find(BLOCK_END_BYTES)
-    if content_end < 0:
-        raise ApplyError(
-            f"managed block template missing END marker: "
-            f"{operation['source']}"
-        )
-    block = block_content[: content_end + len(BLOCK_END_BYTES)]
-    write_bytes_atomic(destination, data[:begin] + block + data[end:])
-
-
 def _prepare_sources(
     plan: dict,
     package_root: Path | None,
@@ -270,15 +255,6 @@ def _executor_root(source: Source | None) -> Path:
     )
 
 
-def prepare_executor_bundle(source: Source | None) -> dict[str, bytes]:
-    """Read every executor file before the first executor write."""
-    root = _executor_root(source)
-    prepared: dict[str, bytes] = {}
-    for relative in EXECUTOR_FILES:
-        prepared[relative] = read_package_file(root, relative)
-    return prepared
-
-
 def executor_entries(source: Source) -> list[dict]:
     """Expand the exact target bundle into auditable package-source operations."""
     root = _executor_root(source)
@@ -287,33 +263,6 @@ def executor_entries(source: Source) -> list[dict]:
              "destination": f".themasterplan/bin/{relative}",
              "ownership": "managed-replace", "required": True}
             for relative in EXECUTOR_FILES]
-
-
-def install_executor(
-    project_root: Path,
-    written: list[str],
-    unchanged: list[str],
-    *,
-    source: Source | None = None,
-    prepared: dict[str, bytes] | None = None,
-) -> tuple[list[str], list[str]]:
-    """Install the executor from the target source, never from the old copy."""
-    bundle = prepared or prepare_executor_bundle(source)
-    bin_root = safe_join(project_root, ".themasterplan/bin")
-    changed = False
-    for relative, content in bundle.items():
-        target = safe_join(bin_root, relative)
-        if target.is_file() and sha256_of_file(target) == _sha256_bytes(content):
-            continue
-        write_bytes_atomic(target, content)
-        changed = True
-
-    summary_path = ".themasterplan/bin/themasterplan.py"
-    if changed:
-        written.append(summary_path)
-    else:
-        unchanged.append(summary_path)
-    return written, unchanged
 
 
 def _check_precondition(
@@ -386,141 +335,132 @@ def _check_precondition(
     raise ApplyError(f"unknown classification: {classification}")
 
 
-def _executor_state(project_root: Path) -> dict[str, dict]:
-    managed: dict[str, dict] = {}
-    bin_root = safe_join(project_root, ".themasterplan/bin")
-    for relative in EXECUTOR_FILES:
-        target = safe_join(bin_root, relative)
-        if not target.is_file():
-            continue
-        digest = sha256_of_file(target)
-        destination = f".themasterplan/bin/{relative}"
-        managed[destination] = {
-            "source": f"<executor>:{relative}",
-            "source_sha256": digest,
-            "installed_sha256": digest,
-            "ownership": "managed-replace",
-        }
-    return managed
-
-
-def _build_state(project_root: Path, plan: dict) -> dict:
-    managed: dict[str, dict] = {}
+def _build_state(plan: dict, contents: dict[str, bytes | None]) -> dict:
+    managed = {}
     for operation in plan["files"]:
-        if operation["ownership"] not in (
-            "managed-replace",
-            "managed-block",
-        ):
+        ownership = operation["ownership"]
+        if ownership not in ("managed-replace", "managed-block"):
             continue
-        destination = operation["destination"]
-        target = safe_join(project_root, destination)
-        if not target.is_file():
-            continue
-        installed = (
-            sha256_of_block(target)
-            if operation["ownership"] == "managed-block"
-            else sha256_of_file(target)
-        )
-        managed[destination] = {
+        relative = operation["destination"]
+        data = contents[relative]
+        if data is None:
+            raise ApplyError(f"managed target missing: {relative}")
+        managed[relative] = {
             "source": operation["source"],
-            "source_sha256": operation.get("source_sha256"),
-            "installed_sha256": installed,
-            "ownership": operation["ownership"],
+            "source_sha256": operation["source_sha256"],
+            "installed_sha256": (sha256_of_block_bytes(data) if ownership == "managed-block"
+                                 else _sha256_bytes(data)),
+            "ownership": ownership,
         }
-    managed.update(_executor_state(project_root))
     return {
         "schema_version": 1,
         "source": plan["source"],
         "selection": plan["selection"],
         "managed_files": managed,
-        "adoption": {
-            "date": None,
-            "platform": None,
-            "git_version": None,
-            "jj_version": None,
-            "status": "PARTIAL",
-        },
+        "adoption_plan_sha256": plan["plan_sha256"],
+        "adoption": {"date": None, "platform": None, "git_version": None,
+                     "jj_version": None, "status": "PARTIAL"},
     }
 
 
-def apply_adopt(
-    project_root: Path,
-    plan_path: Path,
-    source: Source | None = None,
-) -> dict:
+def apply_adopt(project_root: Path, plan_path: Path, source: Source | None = None,
+                *, reviewed_plan_sha256: str | None = None) -> dict:
+    from .planning import adopt_plan_digest, plan_adopt
+
     plan = read_json(plan_path)
     _validate_plan(plan)
+    digest = adopt_plan_digest(plan)
+    if plan.get("plan_sha256") != digest:
+        raise ApplyError("plan summary mismatch; regenerate and review")
+    if reviewed_plan_sha256 is not None and digest != reviewed_plan_sha256:
+        raise ApplyError("plan does not match the reviewed summary")
     if source is None:
         raise ApplyError("apply-adopt requires --source")
     if source.as_dict() != plan.get("source"):
         raise ApplyError("resolver source does not match plan source")
+    if sha256_of_file(source.package_root / "distribution/manifest.json") != plan.get("manifest_sha256"):
+        raise ApplyError("manifest changed since plan; regenerate and review")
 
-    from .manifest import required_paths, select_files
-    from .source import package_manifest
-    selected = select_files(package_manifest(source.package_root), plan["selection"]["profile"],
-                            source.package_root)
-    validate_target_paths({op["destination"] for op in plan["files"]} |
-                          {entry["destination"] for entry in executor_entries(source)} |
-                          {".themasterplan/state.json"})
-    planned = {op["destination"]: op for op in plan["files"]}
-    mapped = {op["destination"]: op for op in selected}
-    for relative in required_paths(plan["selection"]["profile"]):
-        op = planned.get(relative)
-        if op is None or any(op.get(key) != mapped[relative][key]
-                             for key in ("source", "ownership")):
-            raise ApplyError(f"plan missing required profile mapping: {relative}")
+    # Read all sources, including kept files, before any target write.
+    prepared = {op["destination"]: _read_package_bytes(source.package_root, op)
+                for op in plan["files"] if op["ownership"] != "project-owned"}
+    state_path = safe_join(project_root, ".themasterplan/state.json")
+    expected = {}
+    for op in plan["files"]:
+        target = safe_join(project_root, op["destination"])
+        if target.exists() and not target.is_file():
+            raise ApplyError(f"target is not a regular file: {op['destination']}")
+        expected[op["destination"]] = target.read_bytes() if target.is_file() else None
+    expected[".themasterplan/state.json"] = state_path.read_bytes() if state_path.is_file() else None
 
-    prepared_sources = _prepare_sources(plan, source.package_root)
-    prepared_executor = prepare_executor_bundle(source)
-
-    for operation in plan["files"]:
-        _check_precondition(
-            project_root,
-            operation,
-            prepared_sources,
-            plan,
-        )
-
-    written: list[str] = []
-    unchanged: list[str] = []
-    for operation in plan["files"]:
-        destination = safe_join(project_root, operation["destination"])
-        classification = operation["classification"]
-        if classification in ("EXISTS_KEEP", "PROJECT_OWNED", "UNCHANGED"):
-            unchanged.append(operation["destination"])
-            continue
-        if classification == "ADD":
-            if destination.is_file():
-                unchanged.append(operation["destination"])
+    if state_path.exists():
+        state = validate_state(read_json(state_path))
+        if (state.get("adoption_plan_sha256") != digest or state["source"] != plan["source"]
+                or state["selection"] != plan["selection"]):
+            raise ApplyError("existing installation: use plan-update or doctor, not adoption")
+        # A receipt alone is not enough: only the full, unchanged managed result
+        # can retry. Project-owned and generated-if-missing files stay owned by
+        # the project, so edits there do not invalidate a completed adoption.
+        # A missing required generated file (e.g. the validation entrypoint) is
+        # still drift and must not be reported as a successful retry.
+        for op in plan["files"]:
+            relative = op["destination"]
+            data = expected[relative]
+            ownership = op["ownership"]
+            if ownership in ("project-owned", "generated-if-missing"):
+                if ownership == "generated-if-missing" and op.get("required") and data is None:
+                    raise ApplyError(f"required generated target missing: {relative}")
                 continue
-            content = prepared_sources[operation["destination"]]
-            if operation.get("render"):
-                content = _render_template(content, plan)
-            if operation["destination"] == "AGENTS.md":
-                content = _make_minimal_agents(content)
-            write_bytes_atomic(destination, content)
-            written.append(operation["destination"])
-        elif classification == "BLOCK_PRESENT":
-            _apply_block(
-                project_root,
-                operation,
-                prepared_sources[operation["destination"]],
-            )
-            written.append(operation["destination"])
-        else:
-            raise ApplyError(
-                f"cannot apply classification {classification}"
-            )
+            current = (sha256_of_block_bytes(data) if ownership == "managed-block"
+                       else _sha256_bytes(data)) if data is not None else None
+            if current != op.get("target_sha256"):
+                raise ApplyError(f"completed adoption target changed: {op['destination']}")
+        result_state = _build_state(plan, expected)
+        if state["managed_files"] != result_state["managed_files"]:
+            raise ApplyError("completed adoption state changed; use doctor")
+        # Recheck snapshots without writes before returning the idempotent result.
+        apply_file_changes(project_root, {}, expected)
+        return {"written": [], "unchanged": [op["destination"] for op in plan["files"]]}
 
-    written, unchanged = install_executor(
-        project_root,
-        written,
-        unchanged,
-        source=source,
-        prepared=prepared_executor,
-    )
-    write_json_atomic(
-        project_root / ".themasterplan/state.json",
-        _build_state(project_root, plan),
-    )
+    # Normal application must match the entire current canonical plan. This also
+    # rejects partial retries, hidden writes, changed selection and forged fields.
+    canonical = plan_adopt(project_root, source, **plan["selection"])
+    if canonical["stop_conditions"]:
+        raise ApplyError(f"target changed since plan; stop conditions: {canonical['stop_conditions']}")
+    if plan != canonical:
+        raise ApplyError("plan changed since plan generation or differs from manifest; regenerate and review")
+    changes = {}
+    written = []
+    unchanged = []
+    for op in plan["files"]:
+        relative = op["destination"]
+        data = expected[relative]
+        classification = op["classification"]
+        _check_precondition(project_root, op, prepared, plan)
+        if classification in ("EXISTS_KEEP", "PROJECT_OWNED", "UNCHANGED"):
+            unchanged.append(relative)
+            continue
+        content = prepared[relative]
+        if op.get("render"):
+            content = _render_template(content, plan)
+        if op["ownership"] == "managed-block":
+            bounds = _block_bounds_bytes(content)
+            if bounds is None:
+                raise ApplyError(f"invalid source managed block: {relative}")
+            begin, end = bounds
+            block = content[begin:end]
+            if classification == "ADD":
+                content = _make_minimal_agents(content)
+            else:
+                bounds = _block_bounds_bytes(data)
+                if bounds is None:
+                    raise ApplyError(f"invalid target managed block: {relative}")
+                begin, end = bounds
+                content = data[:begin] + block + data[end:]
+        changes[relative] = content
+        written.append(relative)
+    state = _build_state(plan, {**expected, **changes})
+    # State is a fixed transaction step, never an arbitrary plan destination.
+    changes[".themasterplan/state.json"] = (json.dumps(state, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    apply_file_changes(project_root, changes, expected)
     return {"written": written, "unchanged": unchanged}

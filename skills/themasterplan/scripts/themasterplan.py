@@ -74,6 +74,7 @@ def _cmd_apply_adopt(args: argparse.Namespace) -> int:
         root,
         Path(args.plan),
         _resolve(args, root),
+        reviewed_plan_sha256=args.plan_sha256,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
@@ -188,6 +189,8 @@ def build_parser() -> argparse.ArgumentParser:
     apply_adopt_parser = commands.add_parser("apply-adopt")
     apply_adopt_parser.add_argument("--root", default=".")
     apply_adopt_parser.add_argument("--plan", required=True)
+    apply_adopt_parser.add_argument("--plan-sha256", required=True,
+                                   help="Summary recorded in the human review")
     _add_source_args(apply_adopt_parser)
     apply_adopt_parser.set_defaults(func=_cmd_apply_adopt)
 

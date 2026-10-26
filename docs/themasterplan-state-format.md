@@ -27,6 +27,7 @@
     "default_branch": "main"
   },
   "managed_files": {},
+  "adoption_plan_sha256": "<completed adoption plan digest>",
   "adoption": {
     "date": "YYYY-MM-DD",
     "platform": "<os>",
@@ -36,6 +37,10 @@
   }
 }
 ```
+
+`adoption_plan_sha256` 只由 `apply-adopt` 写入，记录已完成采用的计划摘要；
+`apply-update` 重建 state 时不复制该字段，因此更新后的安装不再把旧采用计划
+视为可重试。缺少该字段的旧 state 视为不可用旧采用计划重试，需重新诊断。
 
 ## v5 变化
 

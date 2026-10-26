@@ -11,12 +11,14 @@ the real executor against temporary directories; the TheMasterplan repository's 
 from __future__ import annotations
 
 import importlib.util
+import copy
 import json
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -24,10 +26,10 @@ EXECUTOR_DIR = REPO_ROOT / "skills" / "themasterplan" / "scripts"
 
 sys.path.insert(0, str(EXECUTOR_DIR))
 from tmlib import TheMasterplanError, PathSafetyError  # noqa: E402
-from tmlib.apply import apply_adopt  # noqa: E402
+from tmlib.apply import EXECUTOR_FILES, apply_adopt  # noqa: E402
 from tmlib.inspect import detect_status, inspect  # noqa: E402
 from tmlib.manifest import ManifestError, load_manifest  # noqa: E402
-from tmlib.planning import plan_adopt  # noqa: E402
+from tmlib.planning import adopt_plan_digest, plan_adopt  # noqa: E402
 from tmlib.source import read_package_file, resolve_local  # noqa: E402
 from tmlib.util import safe_join, sha256_of_file, write_json_atomic  # noqa: E402
 from tmlib.verify import verify  # noqa: E402
@@ -517,7 +519,9 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertTrue(plan_out.is_file())
         apply_proc = run_exec(
-            ["apply-adopt", "--root", str(self.root), "--plan", str(plan_out), "--source", str(PACKAGE_ROOT), "--commit", TEST_COMMIT],
+            ["apply-adopt", "--root", str(self.root), "--plan", str(plan_out),
+             "--plan-sha256", json.loads(plan_out.read_text())["plan_sha256"],
+             "--source", str(PACKAGE_ROOT), "--commit", TEST_COMMIT],
             self.root,
         )
         self.assertEqual(apply_proc.returncode, 0, apply_proc.stderr)
@@ -547,6 +551,249 @@ class PlanAdoptParserTest(unittest.TestCase):
 
         with self.assertRaises(SystemExit):
             parser.parse_args(common + ["--adapter", "generic"])
+
+
+class AdoptSafetyTests(unittest.TestCase):
+    """Run the actual adoption transaction; refusal must preserve every byte."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.workspace = Path(tmp.name)
+        self.root = self.workspace / "project"
+        self.root.mkdir()
+        self.package = self.workspace / "package"
+        for part in ("core", "profiles", "distribution", "skills/themasterplan"):
+            shutil.copytree(PACKAGE_ROOT / part, self.package / part,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        self.source = resolve_local(self.package, commit=TEST_COMMIT)
+        self.plan_path = self.workspace / "plan.json"
+
+    def plan(self, profile="git"):
+        return plan_adopt(self.root, self.source, profile=profile,
+                          validation_path="scripts/check.sh")
+
+    def snapshot(self):
+        return {p.relative_to(self.root).as_posix(): p.read_bytes()
+                for p in self.root.rglob("*") if p.is_file()}
+
+    def dirs(self):
+        return {p.relative_to(self.root).as_posix()
+                for p in self.root.rglob("*") if p.is_dir()}
+
+    def apply(self, plan, **kwargs):
+        write_json_atomic(self.plan_path, plan)
+        return apply_adopt(self.root, self.plan_path, self.source, **kwargs)
+
+    def refused(self, plan, **kwargs):
+        before = self.snapshot()
+        with self.assertRaises(TheMasterplanError):
+            self.apply(plan, **kwargs)
+        self.assertEqual(before, self.snapshot())
+
+    def test_full_bundle_is_planned_and_written_for_both_profiles(self):
+        for profile in ("git", "jj"):
+            with self.subTest(profile=profile):
+                self.root = self.workspace / profile
+                self.root.mkdir()
+                plan = self.plan(profile)
+                bundle = {f".themasterplan/bin/{p}" for p in EXECUTOR_FILES}
+                self.assertTrue(bundle <= {op["destination"] for op in plan["files"]})
+                before = self.snapshot()
+                result = self.apply(plan)
+                actual = {p for p, data in self.snapshot().items() if before.get(p) != data}
+                self.assertEqual(actual - {".themasterplan/state.json"}, set(result["written"]))
+                self.assertTrue(verify(self.root)["ok"])
+                self.assertEqual(self.apply(plan)["written"], [])
+
+    def test_unregistered_executor_never_overwritten_even_when_matching(self):
+        path = ".themasterplan/bin/tmlib/apply.py"
+        target = self.root / path
+        target.parent.mkdir(parents=True)
+        for data in (b"# local patch\n", (self.package / "skills/themasterplan/scripts/tmlib/apply.py").read_bytes()):
+            with self.subTest(data=data[:20]):
+                target.write_bytes(data)
+                plan = self.plan()
+                self.assertIn(path, {op["destination"] for op in plan["files"]})
+                self.assertTrue(plan["stop_conditions"])
+                self.refused(plan)
+
+    def test_recomputed_summary_cannot_authorize_forged_operations(self):
+        original = self.plan()
+        mutations = [
+            lambda p: p["files"].append({**p["files"][0], "destination": "extra.md"}),
+            lambda p: p["files"].pop(),
+        ]
+        for key, value in (("ownership", "generated-if-missing"), ("source", "core/policy.md"),
+                           ("required", False), ("render", True), ("source_sha256", None),
+                           ("classification", "PROJECT_OWNED"), ("target_sha256", "0" * 64)):
+            mutations.append(lambda p, k=key, v=value: p["files"][0].update({k: v}))
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                plan = copy.deepcopy(original)
+                mutate(plan)
+                plan["plan_sha256"] = adopt_plan_digest(plan)
+                self.refused(plan)
+
+    def test_review_summary_binds_selection_even_when_canonical(self):
+        original = self.plan()
+        changed = plan_adopt(self.root, self.source, profile="git",
+                             validation_path="tools/check.sh", default_branch="master")
+        self.refused(changed, reviewed_plan_sha256=original["plan_sha256"])
+
+    def test_missing_summary_is_rejected(self):
+        plan = self.plan()
+        del plan["plan_sha256"]
+        self.refused(plan)
+
+    def test_cli_requires_the_reviewed_summary(self):
+        plan = self.plan()
+        write_json_atomic(self.plan_path, plan)
+        args = ["apply-adopt", "--root", str(self.root), "--plan", str(self.plan_path),
+                "--source", str(self.package), "--commit", TEST_COMMIT]
+        before = self.snapshot()
+        for tail in ([], ["--plan-sha256", "0" * 64]):
+            result = run_exec(args + tail, self.root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(before, self.snapshot())
+
+    def test_unplanned_executor_source_drift_stops_before_all_writes(self):
+        plan = self.plan()
+        target = self.package / "skills/themasterplan/scripts/tmlib/apply.py"
+        target.write_bytes(target.read_bytes() + b"\n# drift\n")
+        self.refused(plan)
+
+    def test_manifest_drift_stops_before_all_writes(self):
+        plan = self.plan()
+        manifest = self.package / "distribution/manifest.json"
+        manifest.write_bytes(manifest.read_bytes() + b"\n")
+        self.refused(plan)
+
+    def test_missing_generated_template_is_a_planning_error(self):
+        (self.package / "distribution/templates/consumer-workflow.yml").unlink()
+        with self.assertRaises(TheMasterplanError):
+            self.plan()
+
+    def test_target_appearing_after_plan_is_refused_without_writes(self):
+        plan = self.plan()
+        target = self.root / "core/policy.md"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"# appeared after planning\n")
+        self.refused(plan)
+
+    def test_existing_managed_target_change_after_plan_is_refused_without_writes(self):
+        target = self.root / "core/policy.md"
+        target.parent.mkdir(parents=True)
+        target.write_bytes((self.package / "core/policy.md").read_bytes())
+        plan = self.plan()
+        target.write_bytes(b"# edited after plan\n")
+        self.refused(plan)
+
+    def test_complete_block_retry_keeps_project_content_and_detects_drift(self):
+        target = self.root / "AGENTS.md"
+        target.write_bytes(b"header\r\n<!-- THEMASTERPLAN:BEGIN MANAGED -->old<!-- THEMASTERPLAN:END MANAGED -->\r\nfooter")
+        plan = self.plan()
+        self.apply(plan)
+        before = self.snapshot()
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertEqual(before, self.snapshot())
+        target.write_bytes(target.read_bytes() + b"\nproject-owned addition")
+        self.assertEqual(self.apply(plan)["written"], [])
+        target.write_bytes(target.read_bytes().replace(b"This block is", b"Tampered block is"))
+        self.refused(plan)
+
+    def test_regenerated_adoption_and_broken_installation_are_refused(self):
+        original = self.plan()
+        self.apply(original)
+        self.refused(self.plan())
+        (self.root / ".themasterplan/bin/tmlib/apply.py").unlink()
+        self.refused(original)
+        (self.root / ".themasterplan/state.json").write_bytes(b"{broken")
+        self.refused(original)
+
+    def test_caught_late_write_failure_rolls_back_adoption(self):
+        from tmlib import util
+        plan = self.plan()
+        real_write = util.write_bytes_atomic
+        count = 0
+
+        def fail_once(path, content, **kwargs):
+            nonlocal count
+            count += 1
+            if count == 4:
+                raise OSError("injected failure")
+            return real_write(path, content, **kwargs)
+
+        write_json_atomic(self.plan_path, plan)
+        before = self.snapshot()
+        before_dirs = self.dirs()
+        with mock.patch("tmlib.util.write_bytes_atomic", side_effect=fail_once):
+            with self.assertRaises(TheMasterplanError):
+                apply_adopt(self.root, self.plan_path, self.source)
+        self.assertEqual(before, self.snapshot())
+        # Rolled-back adoption must not leave an empty executor skeleton behind:
+        # such residue would be diagnosed as an unregistered installation.
+        self.assertEqual(before_dirs, self.dirs())
+        retry = self.plan()
+        self.assertEqual(retry["stop_conditions"], [])
+        self.assertTrue(self.apply(retry)["written"])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_empty_executor_directories_do_not_block_adoption(self):
+        (self.root / ".themasterplan/bin/tmlib").mkdir(parents=True)
+        plan = self.plan()
+        self.assertEqual(plan["stop_conditions"], [])
+        self.apply(plan)
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_retry_tolerates_project_edits_to_kept_generated_file(self):
+        check = self.root / "scripts/check.sh"
+        check.parent.mkdir(parents=True)
+        check.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+        plan = self.plan()
+        self.assertIn("EXISTS_KEEP", {op["classification"] for op in plan["files"]})
+        self.apply(plan)
+        check.write_bytes(check.read_bytes() + b"# project addition\n")
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_retry_tolerates_project_edits_to_generated_file(self):
+        plan = self.plan()
+        self.apply(plan)
+        check = self.root / "scripts/check.sh"
+        self.assertTrue(check.is_file())
+        check.write_bytes(check.read_bytes() + b"# project addition\n")
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_retry_refuses_missing_required_generated_target(self):
+        plan = self.plan()
+        self.apply(plan)
+        (self.root / "scripts/check.sh").unlink()
+        self.refused(plan)
+
+    def test_retry_allows_missing_optional_generated_target(self):
+        plan = self.plan()
+        self.apply(plan)
+        (self.root / ".github/workflows/check.yml").unlink()
+        self.assertEqual(self.apply(plan)["written"], [])
+        self.assertTrue(verify(self.root)["ok"])
+
+    def test_unexpected_file_under_bin_stops_adoption(self):
+        target = self.root / ".themasterplan/bin/tmlib/legacy_helper.py"
+        target.parent.mkdir(parents=True)
+        target.write_text("# stale\n", encoding="utf-8")
+        plan = self.plan()
+        self.assertTrue(plan["stop_conditions"])
+        self.refused(plan)
+
+    def test_bin_path_replaced_by_file_stops_adoption_without_traceback(self):
+        target = self.root / ".themasterplan/bin"
+        target.parent.mkdir(parents=True)
+        target.write_text("not a directory\n", encoding="utf-8")
+        plan = self.plan()
+        self.assertTrue(plan["stop_conditions"])
+        self.refused(plan)
 
 
 if __name__ == "__main__":
