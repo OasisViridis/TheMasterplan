@@ -103,10 +103,10 @@ git fetch origin
 [ "$(gh pr view "$APPROVED_PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
 
 # 2. 结果树与父提交：树等于审核预期树；Squash 为唯一父提交且等于审核 base
-#    （父提交数量是结构代理；平台合并事件/审计记录需另存证据）
+#    （git rev-list 计数避免提交消息干扰；平台合并事件/审计记录需另存证据）
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] || exit 1
 [ "$APPROVED_MERGE_METHOD" = "squash" ] || exit 1
-[ "$(git cat-file -p "$APPROVED_CANDIDATE_SHA" | grep -c '^parent ')" -eq 1 ] || exit 1
+[ "$(git rev-list --parents -n 1 "$APPROVED_CANDIDATE_SHA" | wc -w)" -eq 2 ] || exit 1
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^")" = "$APPROVED_BASE_SHA" ] || exit 1
 [ "$APPROVED_CANDIDATE_SHA" != "$APPROVED_HEAD_SHA" ] || exit 1
 
@@ -144,6 +144,9 @@ git fetch origin
 set -euo pipefail
 APPROVED_CANDIDATE_SHA="${APPROVED_CANDIDATE_SHA:?set the approved full result SHA from the audit record}"
 # 该变量只能来自审核记录；不得在本块重新读取或推导候选。
+TAG="${TAG:?set the approved release tag}"
+NOTES_FILE="${NOTES_FILE:?set the approved notes file}"
+APPROVED_NOTES_SHA256="${APPROVED_NOTES_SHA256:?set the reviewed Release Notes SHA-256}"
 
 # 0. 执行前重新 fetch 并核验授权基线（core/policy.md §4 失效检测）
 git fetch origin
@@ -156,6 +159,20 @@ if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
 fi
 if gh release view "$TAG" >/dev/null 2>&1; then
   echo "release created since approval: $TAG" >&2 && exit 1
+fi
+
+# 0.5 在任何远端写入前复核 Notes 摘要与（派生路径的）结果树，避免 tag 已 push 后
+#     才发现漂移。摘要口径：对 NOTES_FILE 的字节直接计算，不规范化换行。
+if command -v sha256sum >/dev/null 2>&1; then
+  NOTES_SHA256=$(sha256sum "$NOTES_FILE" | awk '{print $1}')
+else
+  NOTES_SHA256=$(shasum -a 256 "$NOTES_FILE" | awk '{print $1}')
+fi
+[ "$NOTES_SHA256" = "$APPROVED_NOTES_SHA256" ] \
+  || { echo "Release Notes changed since approval" >&2 && exit 1; }
+if [ -n "${APPROVED_RESULT_TREE:-}" ]; then
+  [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] \
+    || { echo "candidate tree differs from reviewed result" >&2 && exit 1; }
 fi
 
 # 1. 创建普通 annotated tag（必须带注解，禁止轻量 tag 用于发布；

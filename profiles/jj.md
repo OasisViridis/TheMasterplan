@@ -62,10 +62,10 @@ jj git fetch --remote origin
 [ "$(gh pr view "$APPROVED_PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
 
 # 2. 结果树与父提交：树等于审核预期树；Squash 为唯一父提交且等于审核 base
-#    （父提交数量是结构代理；平台合并事件/审计记录需另存证据）
+#    （git rev-list 计数避免提交消息干扰；平台合并事件/审计记录需另存证据）
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] || exit 1
 [ "$APPROVED_MERGE_METHOD" = "squash" ] || exit 1
-[ "$(git cat-file -p "$APPROVED_CANDIDATE_SHA" | grep -c '^parent ')" -eq 1 ] || exit 1
+[ "$(git rev-list --parents -n 1 "$APPROVED_CANDIDATE_SHA" | wc -w)" -eq 2 ] || exit 1
 [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^")" = "$APPROVED_BASE_SHA" ] || exit 1
 [ "$APPROVED_CANDIDATE_SHA" != "$APPROVED_HEAD_SHA" ] || exit 1
 
@@ -79,11 +79,11 @@ jj git fetch --remote origin
 前缀代替完整 SHA。§2.2 派生路径在合并前审核全部绑定项与唯一转换，合并后经
 “派生候选核验”块固定结果并注入；不把 head 冒充结果、不重复批准获批范围。
 审核完整列明 `core/policy.md` §2.1 与 §2.2 的要素：`TAG`、`NOTES_FILE`、
-Notes 内容 SHA-256（最终文件字节，不规范化换行）、执行身份、动作/目标限制、预期
-受限凭据切换及撤销核验、派生路径的 PR/head/base/预期树/合并方式与重验记录、完整写操作、顺序、
-验证结果、当前远端状态、停止条件和已知风险。目标 tag 在本地和远端都必须不存在；
-通过 gh 核实目标 Release 不存在。网络、认证或查询失败不是“不存在”的证据，
-应停止核实。
+Notes 内容 SHA-256（最终文件字节，不规范化换行）、执行身份、日常能力、使用期限、
+动作/目标限制、预期受限凭据切换及撤销核验、派生路径的 PR/head/base/预期树/合并
+方式与重验记录、完整写操作、顺序、验证结果、当前远端状态、停止条件和已知风险。
+目标 tag 在本地和远端都必须不存在；通过 gh 核实目标 Release 不存在。网络、认证
+或查询失败不是“不存在”的证据，应停止核实。
 
 ## 阶段 C：执行已批准事务
 
@@ -96,6 +96,7 @@ APPROVED_CANDIDATE_SHA="${APPROVED_CANDIDATE_SHA:?set the approved full commit S
 # 该变量只能来自审核记录；不得重新读取 main 或 change 顶替。
 TAG="${TAG:?set the approved release tag}"
 NOTES_FILE="${NOTES_FILE:?set the approved notes file}"
+APPROVED_NOTES_SHA256="${APPROVED_NOTES_SHA256:?set the reviewed Release Notes SHA-256}"
 git check-ref-format "refs/tags/$TAG"
 git fetch origin
 CUR_MAIN=$(git ls-remote origin "refs/heads/main" | awk '{print $1}')
@@ -110,6 +111,19 @@ RELEASE_TAGS=$(gh api "repos/$REPOSITORY/releases" --paginate --jq '.[].tag_name
 if printf '%s\n' "$RELEASE_TAGS" | grep -Fxq -- "$TAG"; then
   echo "release already exists: $TAG" >&2
   exit 1
+fi
+# 在任何远端写入前复核 Notes 摘要与（派生路径的）结果树，避免 tag 已 push 后
+# 才发现漂移。摘要口径：对 NOTES_FILE 的字节直接计算，不规范化换行。
+if command -v sha256sum >/dev/null 2>&1; then
+  NOTES_SHA256=$(sha256sum "$NOTES_FILE" | awk '{print $1}')
+else
+  NOTES_SHA256=$(shasum -a 256 "$NOTES_FILE" | awk '{print $1}')
+fi
+[ "$NOTES_SHA256" = "$APPROVED_NOTES_SHA256" ] \
+  || { echo "Release Notes changed since approval" >&2 && exit 1; }
+if [ -n "${APPROVED_RESULT_TREE:-}" ]; then
+  [ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] \
+    || { echo "candidate tree differs from reviewed result" >&2 && exit 1; }
 fi
 git tag -a "$TAG" -m "Release $TAG" "$APPROVED_CANDIDATE_SHA"
 git push origin "$TAG"
