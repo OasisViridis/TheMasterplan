@@ -16,6 +16,10 @@ uses: OasisViridis/TheMasterplan/.github/workflows/aw-check.yml@v1
 GitHub Actions 不为已改名仓库的 `uses:`（action / reusable workflow）提供重定向：
 旧 owner `OasisSaber` 的 `uses:` 会以 repository not found 失败，v1 兼容线必须用
 当前 owner `OasisViridis` 调用。`v1` 是冻结分支（`refs/heads/v1`），不是 Tag。
+v1 兼容线内部仍以 `repository: OasisSaber/AgenticWonderwall` 检出策略脚本（历史
+owner 名；`OasisSaber` 当前已不是有效账号），该 checkout 依赖 git/API 改名重定向。
+旧 owner 被他人注册时既可能断流，也可能改变实际检出内容；需要不依赖旧名的消费者
+应固定 v5.x Tag 或自行镜像 v1。
 
 本源码目标版本（v5.1.3，tag-only 精确固定）：
 

@@ -225,6 +225,19 @@ class ActionsContractTests(unittest.TestCase):
             self.assertIn("- Policy source: `candidate`", text)
             self.assertNotIn("Policy ref", text)
 
+    def test_live_docs_do_not_reference_renamed_owner_workflows(self):
+        root = Path(__file__).resolve().parent.parent
+        offenders = []
+        for path in sorted(root.rglob("*.md")):
+            relative = path.relative_to(root).as_posix()
+            if relative.startswith("docs/releases/"):
+                continue  # published release snapshots are immutable history
+            for number, line in enumerate(
+                    path.read_text(encoding="utf-8").splitlines(), 1):
+                if "OasisSaber/" in line and "/.github/workflows/" in line:
+                    offenders.append(f"{relative}:{number}: {line.strip()}")
+        self.assertEqual(offenders, [])
+
 
 if __name__ == "__main__":
     unittest.main()
