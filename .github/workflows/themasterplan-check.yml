@@ -36,8 +36,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # 自身仓库按不可变仓库 ID 识别：改名不改变 ID，同名第三方仓库不会进入自证分支。
       - name: Checkout TheMasterplan policy
-        if: github.repository != 'OasisViridis/TheMasterplan' && github.repository != 'OasisSaber/TheMasterplan'
+        if: github.repository_id != '1309061768'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: OasisViridis/TheMasterplan
@@ -51,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "$GITHUB_REPOSITORY" == "OasisViridis/TheMasterplan" || "$GITHUB_REPOSITORY" == "OasisSaber/TheMasterplan" ]]; then
+          if [[ "${GITHUB_REPOSITORY_ID:-}" == "1309061768" ]]; then
             echo "POLICY_DIR=$GITHUB_WORKSPACE/project" >> "$GITHUB_ENV"
           else
             echo "POLICY_DIR=$GITHUB_WORKSPACE/.themasterplan" >> "$GITHUB_ENV"

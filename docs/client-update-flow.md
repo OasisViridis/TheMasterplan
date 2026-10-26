@@ -159,8 +159,11 @@ repository）。被本地修改的文件不会被覆盖（`LOCAL_MODIFIED` 停�
 `source_repository` 构造 Source，并验证版本、完整 SHA 与内容。历史包、State
 与缓存登记保留原身份，不全局改写；其他 owner/repo 的不匹配仍拒绝。
 缓存按请求的定位名称与 commit 隔离，别名不让一个包冒用另一个包的来源。
-下文及已有状态示例中的历史来源名继续有效；当前 Actions 调用使用当前托管名。
-此兼容规则只属于候选执行器，已发布执行器必须按其原契约使用。
+已发布 Tag 内容中的历史 owner 引用（如 `v1`、`v5.1.0`–`v5.1.3` 的 `uses:` 与
+`repository:`）目前依赖 GitHub 改名重定向才能解析；新引用一律使用当前托管名。
+执行器的默认定位名仍是历史名，可用 `--repository OasisViridis/TheMasterplan`
+显式指定。下文及已有状态示例中的历史来源名继续有效；当前 Actions 调用使用当前
+托管名。此兼容规则只属于候选执行器，已发布执行器必须按其原契约使用。
 
 升级执行器不会修改业务仓库的 GitHub Actions。采用者或获明确批准的 Agent
 按审核范围同步：

@@ -73,10 +73,11 @@ TheMasterplan reusable workflow
 TheMasterplan 仓库自身通过相对路径调用当前提交内的 reusable workflow，确保 TheMasterplan 的 PR
 测试当前 PR 中的策略实现而不是远端旧版本。
 
-候选源码对当前身份 `OasisViridis/TheMasterplan` 与已知历史身份
-`OasisSaber/TheMasterplan` 都使用调用方 checkout 的候选策略。其他仓库仍检出
-当前中央仓库并使用 `inputs.policy-ref`；输入、只读权限和 required check 均不变。
-这只修正源码中的策略选择，不修改已发布 Tag 或替采用项目自动同步工作流。
+候选源码按不可变仓库 ID `1309061768` 识别当前托管仓库自身：仓库改名不改变 ID，
+因此当前 PR 与改名前的运行都使用调用方 checkout 的候选策略，同名第三方仓库不会
+进入该分支。其他仓库仍检出当前中央仓库并使用 `inputs.policy-ref`；输入、只读权限
+和 required check 均不变。这只修正源码中的策略选择，不修改已发布 Tag 或替采用
+项目自动同步工作流。
 
 ## 职责边界
 

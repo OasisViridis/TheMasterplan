@@ -1,12 +1,13 @@
 import re
 import os
-import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
+
+from scripts.test_check_entry import BASH
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/themasterplan-check.yml"
@@ -132,30 +133,32 @@ class ActionsContractTests(unittest.TestCase):
     def test_runner_is_ubuntu_latest(self):
         self.assertEqual(self.check.get("runs-on"), "ubuntu-latest")
 
-    def test_policy_selection_executes_current_historical_and_consumer_branches(self):
+    def test_policy_selection_matches_repository_id_instead_of_names(self):
         steps = self.check["steps"]
         checkout = next(s for s in steps if s["name"] == "Checkout TheMasterplan policy")
         selection = next(s for s in steps if s["name"] == "Select policy source")
-        names = ("OasisViridis/TheMasterplan", "OasisSaber/TheMasterplan")
-        self.assertEqual(checkout["if"], " && ".join(f"github.repository != '{n}'" for n in names))
-        self.assertEqual(checkout["with"]["repository"], names[0])
+        self.assertEqual(checkout["if"], "github.repository_id != '1309061768'")
+        self.assertEqual(checkout["with"]["repository"], "OasisViridis/TheMasterplan")
         self.assertEqual(checkout["with"]["ref"], "${{ inputs.policy-ref }}")
-        bash = shutil.which("bash")
-        if os.name == "nt" and Path("C:/Program Files/Git/bin/bash.exe").is_file():
-            bash = "C:/Program Files/Git/bin/bash.exe"
-        if not bash:
-            self.skipTest("Bash is required to execute the actual policy selection step")
+        # The ID is stable across renames; a same-name third-party repo is not self.
+        cases = (
+            ("1309061768", "OasisViridis/TheMasterplan", "project"),
+            ("1309061768", "renamed/Anything", "project"),
+            ("42", "OasisSaber/TheMasterplan", ".themasterplan"),
+            ("42", "consumer/App", ".themasterplan"),
+            ("42", "other/TheMasterplan", ".themasterplan"),
+        )
         with tempfile.TemporaryDirectory() as tmp:
-            for repository in (*names, "consumer/App", "other/TheMasterplan"):
-                with self.subTest(repository=repository):
+            for repository_id, repository, suffix in cases:
+                with self.subTest(repository_id=repository_id, repository=repository):
                     env_file = Path(tmp) / "env"
                     env_file.write_bytes(b"")
                     env = {**os.environ, "GITHUB_REPOSITORY": repository,
+                           "GITHUB_REPOSITORY_ID": repository_id,
                            "GITHUB_WORKSPACE": "/candidate", "GITHUB_ENV": env_file.as_posix()}
-                    result = subprocess.run([bash, "-c", selection["run"]], env=env,
+                    result = subprocess.run([BASH, "-c", selection["run"]], env=env,
                                             capture_output=True, text=True, timeout=15)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    suffix = "project" if repository in names else ".themasterplan"
                     self.assertEqual(env_file.read_text().strip(), f"POLICY_DIR=/candidate/{suffix}")
 
 
