@@ -26,6 +26,7 @@ from .manifest import FULL_SHA_RE, load_manifest
 from .util import TheMasterplanError, safe_join
 
 DEFAULT_REPOSITORY = "OasisSaber/TheMasterplan"
+REPOSITORY_LOCATORS = frozenset((DEFAULT_REPOSITORY, "OasisViridis/TheMasterplan"))
 ARCHIVE_URL = "https://codeload.github.com/{repository}/tar.gz/{commit}"
 API_COMMIT_URL = "https://api.github.com/repos/{repository}/commits/{ref}"
 
@@ -40,6 +41,12 @@ SOURCE_MARKER = ".themasterplan-source.json"
 
 class SourceError(TheMasterplanError):
     """Raised when a source cannot be resolved or fails identity checks."""
+
+
+def repository_locator_matches(locator: str, identity: str) -> bool:
+    """Only this explicit rename pair is compatible; persist the manifest ID."""
+    return locator == identity or (locator in REPOSITORY_LOCATORS
+                                    and identity in REPOSITORY_LOCATORS)
 
 
 @dataclass(frozen=True)
@@ -314,7 +321,7 @@ def _validate_manifest_identity(
     expected_version: str | None,
 ) -> None:
     manifest_repository = manifest.get("source_repository")
-    if manifest_repository != requested_repository:
+    if not repository_locator_matches(requested_repository, manifest_repository):
         raise SourceError(
             "manifest repository mismatch: "
             f"requested {requested_repository}, got {manifest_repository!r}"
@@ -355,7 +362,7 @@ def _load_cached_source(
         expected_version=version,
     )
     return Source(
-        repository=repository,
+        repository=manifest["source_repository"],
         version=manifest["distribution_version"],
         commit=commit,
         package_root=source_cache,
@@ -441,6 +448,7 @@ def resolve_remote(
         source_cache.parent.mkdir(parents=True, exist_ok=True)
         os.replace(package_root, source_cache)
         marker = {
+            # Cache namespace and marker are locators, not the persisted Source ID.
             "repository": repository,
             "version": manifest["distribution_version"],
             "commit": resolved_commit,
@@ -457,7 +465,7 @@ def resolve_remote(
         shutil.rmtree(temporary, ignore_errors=True)
 
     return Source(
-        repository=repository,
+        repository=manifest["source_repository"],
         version=manifest["distribution_version"],
         commit=resolved_commit,
         package_root=source_cache,
@@ -476,7 +484,7 @@ def resolve_source(
         source = resolve_local(candidate, commit=commit)
         if (
             expected_repository is not None
-            and source.repository != expected_repository
+            and not repository_locator_matches(expected_repository, source.repository)
         ):
             raise SourceError(
                 "local source repository mismatch: "

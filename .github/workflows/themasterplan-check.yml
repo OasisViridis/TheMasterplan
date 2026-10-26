@@ -36,11 +36,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # 自身仓库按不可变仓库 ID 识别：改名不改变 ID，同名第三方仓库不会进入自证分支。
       - name: Checkout TheMasterplan policy
-        if: github.repository != 'OasisSaber/TheMasterplan'
+        if: github.repository_id != '1309061768'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          repository: OasisSaber/TheMasterplan
+          repository: OasisViridis/TheMasterplan
           ref: ${{ inputs.policy-ref }}
           path: .themasterplan
           fetch-depth: 1
@@ -48,13 +49,17 @@ jobs:
 
       - name: Select policy source
         shell: bash
+        env:
+          POLICY_REF: ${{ inputs.policy-ref }}
         run: |
           set -euo pipefail
 
-          if [[ "$GITHUB_REPOSITORY" == "OasisSaber/TheMasterplan" ]]; then
+          if [[ "${GITHUB_REPOSITORY_ID:-}" == "1309061768" ]]; then
             echo "POLICY_DIR=$GITHUB_WORKSPACE/project" >> "$GITHUB_ENV"
+            echo "POLICY_SOURCE=candidate" >> "$GITHUB_ENV"
           else
             echo "POLICY_DIR=$GITHUB_WORKSPACE/.themasterplan" >> "$GITHUB_ENV"
+            echo "POLICY_SOURCE=central:$POLICY_REF" >> "$GITHUB_ENV"
           fi
 
       - name: Set up Python
@@ -101,11 +106,15 @@ jobs:
         env:
           PROJECT_CHECK_PATH: ${{ inputs.project-check-path }}
           POLICY_REF: ${{ inputs.policy-ref }}
+          POLICY_SOURCE: ${{ env.POLICY_SOURCE }}
         run: |
           {
             echo "## TheMasterplan"
             echo
             echo "- Caller: \`$GITHUB_REPOSITORY\`"
-            echo "- Policy ref: \`$POLICY_REF\`"
+            echo "- Policy source: \`$POLICY_SOURCE\`"
+            if [[ "$POLICY_SOURCE" == central:* ]]; then
+              echo "- Policy ref: \`$POLICY_REF\`"
+            fi
             echo "- Project check: \`$PROJECT_CHECK_PATH\`"
           } >> "$GITHUB_STEP_SUMMARY"
