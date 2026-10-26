@@ -142,24 +142,48 @@ class ActionsContractTests(unittest.TestCase):
         self.assertEqual(checkout["with"]["ref"], "${{ inputs.policy-ref }}")
         # The ID is stable across renames; a same-name third-party repo is not self.
         cases = (
-            ("1309061768", "OasisViridis/TheMasterplan", "project"),
-            ("1309061768", "renamed/Anything", "project"),
-            ("42", "OasisSaber/TheMasterplan", ".themasterplan"),
-            ("42", "consumer/App", ".themasterplan"),
-            ("42", "other/TheMasterplan", ".themasterplan"),
+            ("1309061768", "OasisViridis/TheMasterplan", "project", "candidate"),
+            ("1309061768", "renamed/Anything", "project", "candidate"),
+            ("42", "OasisSaber/TheMasterplan", ".themasterplan", "central:v1"),
+            ("42", "consumer/App", ".themasterplan", "central:v1"),
+            ("42", "other/TheMasterplan", ".themasterplan", "central:v1"),
         )
         with tempfile.TemporaryDirectory() as tmp:
-            for repository_id, repository, suffix in cases:
+            for repository_id, repository, suffix, source in cases:
                 with self.subTest(repository_id=repository_id, repository=repository):
                     env_file = Path(tmp) / "env"
                     env_file.write_bytes(b"")
                     env = {**os.environ, "GITHUB_REPOSITORY": repository,
                            "GITHUB_REPOSITORY_ID": repository_id,
-                           "GITHUB_WORKSPACE": "/candidate", "GITHUB_ENV": env_file.as_posix()}
+                           "GITHUB_WORKSPACE": "/candidate", "GITHUB_ENV": env_file.as_posix(),
+                           "POLICY_REF": "v1"}
                     result = subprocess.run([BASH, "-c", selection["run"]], env=env,
                                             capture_output=True, text=True, timeout=15)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(env_file.read_text().strip(), f"POLICY_DIR=/candidate/{suffix}")
+                    lines = env_file.read_text(encoding="utf-8").splitlines()
+                    self.assertIn(f"POLICY_DIR=/candidate/{suffix}", lines)
+                    self.assertIn(f"POLICY_SOURCE={source}", lines)
+
+    def test_check_summary_reports_policy_source_without_stale_ref(self):
+        steps = self.check["steps"]
+        summary = next(s for s in steps if s["name"] == "Write check summary")
+        cases = (("candidate", False), ("central:v1", True))
+        with tempfile.TemporaryDirectory() as tmp:
+            for source, expects_ref in cases:
+                with self.subTest(policy_source=source):
+                    out = Path(tmp) / "summary"
+                    out.write_bytes(b"")
+                    env = {**os.environ, "GITHUB_REPOSITORY": "caller/App",
+                           "GITHUB_STEP_SUMMARY": out.as_posix(),
+                           "POLICY_SOURCE": source, "POLICY_REF": "v1",
+                           "PROJECT_CHECK_PATH": "scripts/check.sh"}
+                    result = subprocess.run([BASH, "-c", summary["run"]], env=env,
+                                            capture_output=True, text=True, timeout=15)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    text = out.read_text(encoding="utf-8")
+                    self.assertIn(f"- Policy source: `{source}`", text)
+                    self.assertIn("- Caller: `caller/App`", text)
+                    self.assertEqual("Policy ref" in text, expects_ref)
 
 
 if __name__ == "__main__":

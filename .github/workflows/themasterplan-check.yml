@@ -49,13 +49,17 @@ jobs:
 
       - name: Select policy source
         shell: bash
+        env:
+          POLICY_REF: ${{ inputs.policy-ref }}
         run: |
           set -euo pipefail
 
           if [[ "${GITHUB_REPOSITORY_ID:-}" == "1309061768" ]]; then
             echo "POLICY_DIR=$GITHUB_WORKSPACE/project" >> "$GITHUB_ENV"
+            echo "POLICY_SOURCE=candidate" >> "$GITHUB_ENV"
           else
             echo "POLICY_DIR=$GITHUB_WORKSPACE/.themasterplan" >> "$GITHUB_ENV"
+            echo "POLICY_SOURCE=central:$POLICY_REF" >> "$GITHUB_ENV"
           fi
 
       - name: Set up Python
@@ -102,11 +106,15 @@ jobs:
         env:
           PROJECT_CHECK_PATH: ${{ inputs.project-check-path }}
           POLICY_REF: ${{ inputs.policy-ref }}
+          POLICY_SOURCE: ${{ env.POLICY_SOURCE }}
         run: |
           {
             echo "## TheMasterplan"
             echo
             echo "- Caller: \`$GITHUB_REPOSITORY\`"
-            echo "- Policy ref: \`$POLICY_REF\`"
+            echo "- Policy source: \`$POLICY_SOURCE\`"
+            if [[ "$POLICY_SOURCE" == central:* ]]; then
+              echo "- Policy ref: \`$POLICY_REF\`"
+            fi
             echo "- Project check: \`$PROJECT_CHECK_PATH\`"
           } >> "$GITHUB_STEP_SUMMARY"
