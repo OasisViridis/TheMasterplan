@@ -227,11 +227,15 @@ class ActionsContractTests(unittest.TestCase):
 
     def test_live_docs_do_not_reference_renamed_owner_workflows(self):
         root = Path(__file__).resolve().parent.parent
+        tracked = subprocess.run(
+            ["git", "ls-files", "--", "*.md", "*.yml", "*.yaml"],
+            cwd=root, capture_output=True, text=True, encoding="utf-8", check=True,
+        ).stdout.splitlines()
         offenders = []
-        for path in sorted(root.rglob("*.md")):
-            relative = path.relative_to(root).as_posix()
+        for relative in tracked:
             if relative.startswith("docs/releases/"):
                 continue  # published release snapshots are immutable history
+            path = root / relative
             for number, line in enumerate(
                     path.read_text(encoding="utf-8").splitlines(), 1):
                 if "OasisSaber/" in line and "/.github/workflows/" in line:
