@@ -1,8 +1,8 @@
 # Core Policy：授权与发布
 
 > 本文件是 TheMasterplan 工作流中"人类批准"与"发布执行"的权威规则来源。
-> 根部 `AGENTS.md` 引用本文件；`profiles/git.md` 与 `profiles/jj.md` 规定
-> 具体工具（Git / jj）下的安全执行方式。
+> 根部 `AGENTS.md` 引用本文件；`profiles/` 下已安装的所选 profile（Git 或 jj）
+> 规定具体工具下的安全执行方式。
 >
 > 权威顺序：本文件不能覆盖系统安全、法律、平台权限、项目安全、隐私、合规、
 > 数据保护与受保护分支限制；本文件只定义"人类授权"如何生效、何时失效。
@@ -267,7 +267,7 @@ bypass 能力。事务结束按审核安排撤销临时能力，记录结果而�
 - Agent 可以自动选择版本号并发布；
 - Agent 可以强推；
 - Agent 可以未经针对该历史的明确授权重写已 push 的任务历史（包括
-  restack/rebase 后移动已发布 change/bookmark）；
+  restack/rebase 后移动已发布的任务分支或 bookmark）；
 - Agent 可以覆盖现有 tag；
 - Agent 可以删除 Release 或远端资源；
 - Agent 可以忽略验证失败；
@@ -278,17 +278,18 @@ bypass 能力。事务结束按审核安排撤销临时能力，记录结果而�
 
 已合并任务分支的远端删除是 PR 生命周期的标准收尾步骤，不属于上述
 「删除远端资源」边界。当且仅当满足以下全部条件时，Agent 可在合并后
-直接删除远端任务分支并清理本地 bookmark，无需另行授权：
+直接删除远端任务分支并清理本地同名任务引用（Git 分支或 jj bookmark），
+无需另行授权：
 
-1. 该分支由 Agent 为本次任务创建（短生命周期 bookmark，
+1. 该分支由 Agent 为本次任务创建（短生命周期任务分支，jj 下为 bookmark，
    `core/workflow.md` §3），且非受保护分支；
 2. 分支引入的全部变更已进入默认分支：对应 Pull Request 已合并（状态
    MERGED、目标分支为默认分支），或已由人类确认分支的全部变更已合入；
 3. 没有打开的 Pull Request 引用该分支；
 4. 不涉及 tag、Release、他人分支或强推；
-5. 删除前先执行 dry-run（如 `jj git push --deleted --dry-run`）确认无
-   目标以外的待删除 ref；删除后以 `git ls-remote` 验证 ref 消失，并在
-   交接中记录。
+5. 删除前先执行 dry-run（Git：`git push --dry-run --delete <remote> <branch>`；
+   jj：`jj git push --deleted --dry-run`）确认无目标以外的待删除 ref；删除后
+   以 `git ls-remote` 验证 ref 消失，并在交接中记录。
 
 任一条件不满足即回到逐次授权路径。本豁免不扩展至 tag、Release、他人
 分支、未合并分支或受保护分支的任何删除。
