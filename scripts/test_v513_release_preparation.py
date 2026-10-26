@@ -1,11 +1,11 @@
-"""Version identity and truthful pre-publication contracts for v5.1.2."""
+"""Version identity and truthful pre-publication contracts for v5.1.3."""
 import json
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "v5.1.2"
-PREVIOUS = "v5.1.1"
+VERSION = "v5.1.3"
+PREVIOUS = "v5.1.2"
 
 
 class ReleasePreparationTests(unittest.TestCase):
@@ -33,22 +33,21 @@ class ReleasePreparationTests(unittest.TestCase):
         self.assertIn("发布状态", agents)
 
     def test_release_notes_document_upgrade_limits_and_sources(self):
-        notes = (ROOT / "docs/releases/v5.1.2.md").read_text(encoding="utf-8")
-        for required in (VERSION, "发布状态", "Assignee", "停止", PREVIOUS, "v1", "未验证", "人类审阅"):
+        notes = (ROOT / f"docs/releases/{VERSION}.md").read_text(encoding="utf-8")
+        for required in (VERSION, "发布状态", PREVIOUS, "停止", "v1", "未验证", "受管", "采纳项目"):
             self.assertIn(required, notes)
-        for url in (
-            "https://github.com/OasisViridis/TheMasterplan/pull/107",
-            "https://github.com/OasisViridis/TheMasterplan/issues/106",
-        ):
-            self.assertIn(url, notes)
+        self.assertIn(
+            "https://github.com/OasisViridis/TheMasterplan/pull/119",
+            notes,
+        )
 
     def test_release_notes_do_not_overclaim_unverified_behaviour_acceptance(self):
-        notes = (ROOT / "docs/releases/v5.1.2.md").read_text(encoding="utf-8")
+        notes = (ROOT / f"docs/releases/{VERSION}.md").read_text(encoding="utf-8")
         self.assertIn("未验证", notes)
         self.assertNotIn("行为场景已完成", notes)
         # The prior release notes remain a published reference.
-        previous = (ROOT / "docs/releases/v5.1.1.md").read_text(encoding="utf-8")
-        self.assertIn("# v5.1.1 发布说明", previous)
+        previous = (ROOT / f"docs/releases/{PREVIOUS}.md").read_text(encoding="utf-8")
+        self.assertIn(f"# {PREVIOUS} 发布说明", previous)
 
     def test_skill_collaboration_reference_is_registered_and_distributed(self):
         manifest = json.loads((ROOT / "distribution/manifest.json").read_text(encoding="utf-8"))
@@ -71,7 +70,8 @@ class ReleasePreparationTests(unittest.TestCase):
 
     def test_frozen_compatibility_and_published_baseline_remain_documented(self):
         channels = (ROOT / "docs/release-channels.md").read_text(encoding="utf-8")
-        self.assertIn("v5.1.2      本源码目标不可变 Release tag", channels)
+        self.assertIn(f"{VERSION}      本源码目标不可变 Release tag", channels)
+        self.assertIn(f"{PREVIOUS}      历史不可变 Release tag", channels)
         self.assertIn("v5.1.1      历史不可变 Release tag", channels)
         self.assertIn("v5.1.0      历史不可变 Release tag", channels)
         self.assertIn("v5.0.0      历史不可变 Release tag", channels)

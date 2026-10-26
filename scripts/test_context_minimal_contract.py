@@ -48,7 +48,7 @@ DELETED = (
 class ContextMinimalContractTests(unittest.TestCase):
     def test_manifest_is_v5_without_adapter_files_or_runtime_surface(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["distribution_version"], "v5.1.2")
+        self.assertEqual(manifest["distribution_version"], "v5.1.3")
         self.assertEqual(
             manifest.get("components", {}).get("adapters"),
             ["generic"],
@@ -131,7 +131,7 @@ class ContextMinimalContractTests(unittest.TestCase):
             self.assertIn("per-step approval", body)
             self.assertIn("unknown checks", body)
         for profile in ("git", "jj"):
-            installed = self._fresh_adopt_agents(profile)
+            installed = self._fresh_adopt_texts(profile)["agents"]
             self.assertIn("All four conditions are required", installed)
             self.assertIn("not completion", installed)
             self.assertIn("unknown checks", installed)
@@ -160,7 +160,7 @@ class ContextMinimalContractTests(unittest.TestCase):
         self.assertIn("§7.1 的全部豁免条件", adoption)
 
 
-    def _fresh_adopt_agents(self, profile: str) -> str:
+    def _fresh_adopt_texts(self, profile: str) -> dict[str, str]:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             subprocess.run(
@@ -199,7 +199,11 @@ class ContextMinimalContractTests(unittest.TestCase):
             state = json.loads((project / ".themasterplan/state.json").read_text(encoding="utf-8"))
             self.assertNotIn("coordinator", state)
             self.assertNotIn("handoff", state)
-            return (project / "AGENTS.md").read_text(encoding="utf-8")
+            return {
+                "agents": (project / "AGENTS.md").read_text(encoding="utf-8"),
+                "policy": (project / "core/policy.md").read_text(encoding="utf-8"),
+                "workflow": installed_workflow,
+            }
 
     def test_adopted_router_has_no_dead_profile_link(self) -> None:
         template = MANAGED_BLOCK.read_text(encoding="utf-8")
@@ -208,10 +212,19 @@ class ContextMinimalContractTests(unittest.TestCase):
         self.assertNotIn("profiles/jj.md", template)
 
         for profile in ("git", "jj"):
-            body = self._fresh_adopt_agents(profile)
+            body = self._fresh_adopt_texts(profile)["agents"]
             self.assertIn("selected installed profile under `profiles/`", body)
             self.assertNotIn("profiles/git.md", body)
             self.assertNotIn("profiles/jj.md", body)
+
+    def test_adopted_docs_resolve_completion_contract_and_shipped_profile(self) -> None:
+        """Referenced surfaces must exist in the installed tree, not upstream."""
+        for profile in ("git", "jj"):
+            texts = self._fresh_adopt_texts(profile)
+            self.assertIn("Completion Contract", texts["workflow"])
+            self.assertIn("## Completion Contract", texts["agents"])
+            self.assertNotIn("profiles/git.md", texts["policy"])
+            self.assertNotIn("profiles/jj.md", texts["policy"])
 
     def test_jj_documented_release_guard_fails_closed_before_writes(self) -> None:
         """Execute the documented Bash block with stubbed transport, not live gh/jj."""
@@ -301,14 +314,14 @@ gh() {
         adoption = ADOPTION.read_text(encoding="utf-8")
 
         for body in (consumer, actions, readme, adoption):
-            self.assertIn("v5.1.2", body)
+            self.assertIn("v5.1.3", body)
             self.assertNotIn("themasterplan-check.yml@v4.1.0", body)
             self.assertNotIn("policy-ref: v4.1.0", body)
 
-        self.assertIn("themasterplan-check.yml@v5.1.2", consumer)
-        self.assertIn("policy-ref: v5.1.2", consumer)
+        self.assertIn("themasterplan-check.yml@v5.1.3", consumer)
+        self.assertIn("policy-ref: v5.1.3", consumer)
         self.assertIn(
-            "v5.1.2      本源码目标不可变 Release tag",
+            "v5.1.3      本源码目标不可变 Release tag",
             channels,
         )
         self.assertIn(
