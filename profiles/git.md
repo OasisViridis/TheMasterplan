@@ -31,16 +31,13 @@ Release。`v1` 兼容线已冻结（指向承载 v2.0.0 内容的提交），**t
 
 候选有两条路径：直接审核既有 `main` 完整 SHA，或先按
 [Core Policy §2.2](../core/policy.md#22-合并后受约束的派生发布候选) 完成已批准
-合并的唯一结果转换与重验。后一条在平台记录、main、预期内容树、完整验证与
-消费者 smoke 全部一致后才固定 `APPROVED_CANDIDATE_SHA`；下列 tag-only 命令
-不负责授权合并或推导候选。执行身份与预期凭据切换按 Core §1.2 核验。
+合并的唯一结果转换与重验。直接路径在本阶段读取并固定候选；派生路径的结果 SHA
+在合并后才存在，必须用下方“派生候选核验”块从审核记录注入，不得在本阶段读取
+当前 `main` 或 PR head 充当结果，也不因获批转换而重复请求同范围批准。
+执行身份与预期权限切换按 Core §1.2 核验。
 
 以下命令全部在最终发布审核前完成，不产生远端写入。使用 `set -euo pipefail`
 或每条检查 `|| exit 1`：任何一项不符合预期都严格失败退出，不得继续：
-
-下列候选读取用于直接审核既有 main 的路径。§2.2 派生路径在合并前审核完整
-绑定项与唯一转换，结果 SHA 尚不存在；合并后按 Core 完成核验再固定该变量，
-不能把当前 main 或 PR head 填作结果，也不因获批转换而重复请求同范围批准。
 
 ```bash
 set -euo pipefail
@@ -79,19 +76,58 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 
 任一检查失败即停止：报告给人类并等待重新审核。
 
+### 派生路径：合并记录与结果核验
+
+派生路径不执行上面的候选读取与 `APPROVED_CANDIDATE_SHA="$CANDIDATE"` 赋值。
+按 Core §2.2 合并后，用下列只读命令核验平台记录、结果树与父提交，再从审核
+记录注入固定结果 SHA；任何一项不一致、注入缺失或当前 `main` 已移动即停止：
+
+```bash
+set -euo pipefail
+APPROVED_PR_NUMBER="${APPROVED_PR_NUMBER:?set the approved PR number}"
+APPROVED_HEAD_SHA="${APPROVED_HEAD_SHA:?set the review-time PR head SHA}"
+APPROVED_BASE_SHA="${APPROVED_BASE_SHA:?set the review-time base SHA}"
+APPROVED_RESULT_TREE="${APPROVED_RESULT_TREE:?set the reviewed expected result tree}"
+APPROVED_MERGE_METHOD="${APPROVED_MERGE_METHOD:?set the approved merge method}"
+APPROVED_CANDIDATE_SHA="${APPROVED_CANDIDATE_SHA:?set the fixed merged result SHA}"
+
+git fetch origin
+
+# 1. 平台记录：PR 已合并到 main，head/base 与审核一致，mergeCommit 等于固定结果
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json state --jq '.state')" = "MERGED" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json headRefOid --jq '.headRefOid')" = "$APPROVED_HEAD_SHA" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json baseRefOid --jq '.baseRefOid')" = "$APPROVED_BASE_SHA" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json baseRefName --jq '.baseRefName')" = "main" ] || exit 1
+[ "$(gh pr view "$APPROVED_PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
+
+# 2. 结果树与父提交：树等于审核预期树；Squash 唯一父提交等于审核 base
+[ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^{tree}")" = "$APPROVED_RESULT_TREE" ] || exit 1
+[ "$APPROVED_MERGE_METHOD" = "squash" ] || exit 1
+[ "$(git rev-parse "$APPROVED_CANDIDATE_SHA^")" = "$APPROVED_BASE_SHA" ] || exit 1
+
+# 3. 当前远端 main 必须正好等于固定结果（否则按 Core §4 停止）
+[ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$APPROVED_CANDIDATE_SHA" ] || exit 1
+```
+
+其他合并方式须在审核中另行列明可执行核验；未列明即不得走派生路径。
+
 ### 最终发布审核必须包含
 
 - 发布版本号（`$TAG`）；
 - 直接路径列完整候选 SHA（`APPROVED_CANDIDATE_SHA`，等于最新 `origin/main`）；
-  派生路径合并前列 Core §2.2 全部绑定项与唯一转换，合并后固定并核验结果 SHA；
+  派生路径合并前列 Core §2.2 全部绑定项与唯一转换，合并后经“派生候选核验”块
+  固定并核验结果 SHA；
+- 合并方式与派生路径的父提交核验（Squash 时唯一父提交等于审核 base）；
 - Release Notes 状态与 `NOTES_FILE` 路径；
-- Notes 内容 SHA-256、执行身份与预期受限凭据切换；派生路径另附 Core §2.2 的绑定与重验记录；
+- Notes 内容 SHA-256（对最终文件字节计算，不规范化换行）与漂移处理；
+- 执行身份、预期受限凭据切换、动作/目标限制与撤销核验；
 - 即将执行的全部外部写操作与顺序（tag-only：push tag → smoke → Release）；
 - 当前验证结果；
 - 停止条件；
 - 已知风险。
 
-缺少关键目标或操作范围时，不得请求发布授权。
+完整审核清单以 `core/policy.md` §2.1 与 §2.2 为准；缺少关键目标或操作范围时，
+不得请求发布授权。
 
 ## 阶段 C：执行已批准操作
 
@@ -100,6 +136,8 @@ APPROVED_CANDIDATE_SHA="$CANDIDATE"
 
 ```bash
 set -euo pipefail
+APPROVED_CANDIDATE_SHA="${APPROVED_CANDIDATE_SHA:?set the approved full result SHA from the audit record}"
+# 该变量只能来自审核记录；不得在本块重新读取或推导候选。
 
 # 0. 执行前重新 fetch 并核验授权基线（core/policy.md §4 失效检测）
 git fetch origin
