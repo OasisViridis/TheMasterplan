@@ -242,6 +242,15 @@ def apply_file_changes(root: Path, changes: dict[str, bytes | None],
     intended_modes = {relative: (None if content is None or os.name == "nt"
                                  else modes[relative] if modes[relative] is not None else 0o600)
                       for relative, content in changes.items()}
+    # Directories created for this transaction are removed again when a caught
+    # failure rolls back; an empty skeleton must not look like an installation.
+    created_dirs: list[Path] = []
+    for relative in changes:
+        parent = safe_join(root, relative).parent
+        while parent != root and not parent.exists():
+            if parent not in created_dirs:
+                created_dirs.append(parent)
+            parent = parent.parent
     completed = []
     try:
         for relative, content in changes.items():
@@ -274,6 +283,11 @@ def apply_file_changes(root: Path, changes: dict[str, bytes | None],
         if failed:
             raise TheMasterplanError(
                 f"apply failed; rollback incomplete, inspect: {', '.join(failed)}") from exc
+        for directory in sorted(created_dirs, key=lambda item: len(item.parts), reverse=True):
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
         if isinstance(exc, (OSError, TheMasterplanError)):
             raise TheMasterplanError(f"apply failed; completed writes restored: {exc}") from exc
         raise
