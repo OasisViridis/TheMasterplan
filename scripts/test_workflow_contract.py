@@ -52,6 +52,11 @@ class WorkflowEntryContractTests(unittest.TestCase):
             for gate in HUMAN_GATES:
                 self.assertIn(gate, text, f"{path.name} 缺少人类门禁「{gate}」")
 
+    def test_invoked_skill_counts_as_data_egress_authorization(self) -> None:
+        self.assertIn("用户当次点名的技能或命令", self.read(AGENTS))
+        self.assertIn("调用本身构成数据外发授权", self.read(POLICY))
+        self.assertIn("counts as authorization for its", self.read(MANAGED_BLOCK))
+
     def test_ambiguity_rule_survives_rule_edits(self) -> None:
         for path in (AGENTS, WORKFLOW):
             self.assertIn("两种合理解释", self.read(path),
