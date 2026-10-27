@@ -9,6 +9,9 @@ Before the first write, open `core/workflow.md` and confirm its 开工检查 gat
 task source, workspace, scope, validation entry. A row you cannot fill stops the
 edit; fill it first, don't write now and explain later.
 Before reporting done, run the repository validation entry and paste its output.
+When a protocol term, gate category, or acceptance bar has two reasonable readings,
+list both and ask the human before inventing an interpretation; this is not an
+approval request.
 
 Read the repository root `AGENTS.md`.
 
