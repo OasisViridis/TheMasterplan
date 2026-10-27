@@ -1,6 +1,6 @@
 # GitHub Actions 中央接口
 
-本源码目标为 **v5.1.3**；发布状态以 [GitHub Releases](https://github.com/OasisViridis/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.3 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
+本源码目标为 **v5.1.4**；发布状态以 [GitHub Releases](https://github.com/OasisViridis/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.4 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
 
 TheMasterplan 提供集中维护、版本化发布的 GitHub Actions 可重用工作流。
 业务仓库通过 `uses` 调用，不再复制中央 CI 实现。
@@ -20,16 +20,16 @@ v1 兼容线内部仍以 `repository: OasisSaber/AgenticWonderwall` 检出策略
 owner 名；`OasisSaber` 当前已不是有效账号），该 checkout 目前仍可经旧名访问
 （GitHub 内部重定向/解析）。旧 owner 被他人注册时既可能断流，也可能改变实际检出
 内容；需要不依赖旧名的消费者应固定到内部引用已改为 `OasisViridis` 的版本（当前
-`main`，或下一个包含该修复的 Tag）。已发布 v5.1.0–v5.1.3 Tag 的工作流内部仍写旧
+`main`，或 `v5.1.4` 及以后的 Tag）。已发布 v5.1.0–v5.1.3 Tag 的工作流内部仍写旧
 owner `OasisSaber`，固定这些 Tag 仍依赖重定向；自行镜像 v1 时必须同步修正内部的
 `repository:` 与自身识别条件。
 
-本源码目标版本（v5.1.3，tag-only 精确固定）：
+本源码目标版本（v5.1.4，tag-only 精确固定）：
 
 ```yaml
-uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.3
+uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.4
 with:
-  policy-ref: v5.1.3
+  policy-ref: v5.1.4
 ```
 
 `aw-check.yml` 在 v1 兼容线生命周期内不得移动或重命名。工作流路径移动属
@@ -48,8 +48,8 @@ with:
 不得加入任意 `setup-command`、`check-command`、Shell 表达式、Secret 输入、
 发布或部署参数、自动合并参数或写权限开关。
 
-固定版本调用时 `policy-ref` 必须等于 `uses` 引用版本（v5.1.3 通道必须
-显式指定 `policy-ref: v5.1.3`），见 [release-channels.md](release-channels.md)。
+固定版本调用时 `policy-ref` 必须等于 `uses` 引用版本（v5.1.4 通道必须
+显式指定 `policy-ref: v5.1.4`），见 [release-channels.md](release-channels.md)。
 
 ## 固定行为
 
@@ -69,7 +69,7 @@ with:
 
 ```text
 业务仓库 .github/workflows/check.yml
-        │ uses @v1（aw-check.yml）或 @v5.1.3（themasterplan-check.yml）
+        │ uses @v1（aw-check.yml）或 @v5.1.4（themasterplan-check.yml）
         ▼
 TheMasterplan reusable workflow
         │

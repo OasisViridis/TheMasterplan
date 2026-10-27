@@ -1,11 +1,11 @@
-"""Version identity and truthful pre-publication contracts for v5.1.3."""
+"""Version identity and truthful pre-publication contracts for v5.1.4."""
 import json
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "v5.1.3"
-PREVIOUS = "v5.1.2"
+VERSION = "v5.1.4"
+PREVIOUS = "v5.1.3"
 
 
 class ReleasePreparationTests(unittest.TestCase):
@@ -37,7 +37,7 @@ class ReleasePreparationTests(unittest.TestCase):
         for required in (VERSION, "发布状态", PREVIOUS, "停止", "v1", "未验证", "受管", "采纳项目"):
             self.assertIn(required, notes)
         self.assertIn(
-            "https://github.com/OasisViridis/TheMasterplan/pull/119",
+            "https://github.com/OasisViridis/TheMasterplan/pull/122",
             notes,
         )
 

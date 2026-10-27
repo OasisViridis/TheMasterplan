@@ -1,13 +1,14 @@
 # 版本通道
 
-本源码目标为 **v5.1.3**；发布状态以 [GitHub Releases](https://github.com/OasisViridis/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.3 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
+本源码目标为 **v5.1.4**；发布状态以 [GitHub Releases](https://github.com/OasisViridis/TheMasterplan/releases) 与对应不可变 Tag 为准。以下 v5.1.4 调用须在 Tag 发布并验证后使用；发布前只固定经审核的完整 SHA，不假定版本已发布。
 
 TheMasterplan 中央 Actions 接口使用以下版本通道：
 
 ```text
 main        TheMasterplan 开发与自测
 v1          兼容线（已冻结，指向承载 v2.0.0 内容的提交，不再推进；工作流路径 aw-check.yml）
-v5.1.3      本源码目标不可变 Release tag（使用前核验发布状态）
+v5.1.4      本源码目标不可变 Release tag（使用前核验发布状态）
+v5.1.3      历史不可变 Release tag（工作流路径 themasterplan-check.yml）
 v5.1.2      历史不可变 Release tag（工作流路径 themasterplan-check.yml）
 v5.1.1      历史不可变 Release tag（工作流路径 themasterplan-check.yml）
 v5.1.0      历史不可变 Release tag（工作流路径 themasterplan-check.yml）
@@ -32,16 +33,16 @@ GitHub Actions 不为已改名仓库的 `uses:`（action / reusable workflow）�
 `repository: OasisSaber/AgenticWonderwall` 检出策略脚本（历史 owner 名；`OasisSaber`
 当前已不是有效账号），该 checkout 目前仍可经旧名访问（GitHub 内部重定向/解析）；
 旧 owner 被他人注册时既可能断流，也可能改变实际检出内容。需要不依赖旧名的消费者
-应固定到内部引用已改为 `OasisViridis` 的版本（当前 `main`，或下一个包含该修复的
+应固定到内部引用已改为 `OasisViridis` 的版本（当前 `main`，或 `v5.1.4` 及以后的
 Tag）；已发布 v5.1.0–v5.1.3 Tag 的工作流内部仍写旧 owner，固定这些 Tag 仍依赖
 重定向；自行镜像 v1 时必须同步修正内部的 `repository:` 与自身识别条件。
 
 本源码目标版（Tag 发布后新采用，tag-only 精确固定）：
 
 ```yaml
-uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.3
+uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.4
 with:
-  policy-ref: v5.1.3
+  policy-ref: v5.1.4
 ```
 
 ## 严格固定
@@ -49,9 +50,9 @@ with:
 本源码目标版：
 
 ```yaml
-uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.3
+uses: OasisViridis/TheMasterplan/.github/workflows/themasterplan-check.yml@v5.1.4
 with:
-  policy-ref: v5.1.3
+  policy-ref: v5.1.4
   project-check-path: scripts/check.sh
 ```
 
