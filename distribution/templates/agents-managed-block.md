@@ -27,11 +27,13 @@ unknown checks require side-effect inspection, not an assumption of safety.
 
 Pushing a task branch is not an approval gate: do not ask for push permission per
 change. Human gates are merge, release, destructive cleanup, and sending repo or
-user data outside the repository and platform. A skill or command the person invoked
-for that call counts as authorization for the destination its documentation names:
-send the requested content, do not ask again and do not redact it to avoid the gate.
-Content scope follows that call; credentials and recipient checks follow
-`core/policy.md` §1.
+user data outside the repository and platform. A skill or command the person
+actively ran for that call counts as authorization for the destination its
+documentation names: send the requested content, do not ask again and
+do not redact it to avoid the gate. A mere mention of the command is not
+authorization, and neither is a call the agent starts on its own; content scope
+follows that call, and recipient checks, credentials and safety limits follow
+`core/policy.md` §1 and §1.2.
 
 ## Completion Contract
 
