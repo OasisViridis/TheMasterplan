@@ -52,6 +52,28 @@ class WorkflowEntryContractTests(unittest.TestCase):
             for gate in HUMAN_GATES:
                 self.assertIn(gate, text, f"{path.name} 缺少人类门禁「{gate}」")
 
+    def test_invoked_skill_counts_as_data_egress_authorization(self) -> None:
+        agents = self.read(AGENTS)
+        policy = self.read(POLICY)
+        block = self.read(MANAGED_BLOCK)
+        for path, text in ((AGENTS, agents), (POLICY, policy)):
+            self.assertIn("用户当次主动发起执行", text, f"{path.name} 丢了技能调用授权")
+            self.assertIn("不再重复索要", text, f"{path.name} 丢了「不再重复索要」")
+            self.assertIn("不自行删改内容", text, f"{path.name} 丢了「不自行删改内容」")
+        self.assertIn("用户要求删减时才删减", policy)
+        self.assertIn("内容范围以用户当次点名的要求为准", policy)
+        self.assertIn("说明缺失或与用户点名不符时先问", policy)
+        self.assertIn("自行决定调用技能不构成用户授权", policy)
+        self.assertIn("凭据值不随技能调用外发", policy)
+        self.assertIn("凭据按 §1.2 处理", policy)
+        self.assertNotIn("凭据仍不发给未点名的接收方", policy)
+        self.assertIn("actively ran for that call", block)
+        self.assertIn("counts as authorization", block)
+        self.assertIn("do not redact it", block)
+        self.assertIn("A mere mention", block)
+        self.assertIn("starts on its own", block)
+        self.assertNotIn("for the task", block)
+
     def test_ambiguity_rule_survives_rule_edits(self) -> None:
         for path in (AGENTS, WORKFLOW):
             self.assertIn("两种合理解释", self.read(path),
