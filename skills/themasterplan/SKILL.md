@@ -5,6 +5,11 @@ description: Apply TheMasterplan delivery governance in repositories that have a
 
 # TheMasterplan
 
+Before the first write, open `core/workflow.md` and confirm its 开工检查 gate:
+task source, workspace, scope, validation entry. A row you cannot fill stops the
+edit; fill it first, don't write now and explain later.
+Before reporting done, run the repository validation entry and paste its output.
+
 Read the repository root `AGENTS.md`.
 
 Use its Context Router and load only guidance relevant to the current task.

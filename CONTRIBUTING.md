@@ -141,7 +141,7 @@ jj git fetch --remote origin
 gh pr create --draft --base main --head <task-bookmark>
 ```
 
-Pull Request 应说明关联 Issue 或明确授权、实现结果、变更内容、验证证据、协作状态、已知限制和未覆盖内容。执行者完成本单元自审后可按授权 push、创建或更新 Draft PR；团队须经过独立审阅，不把自审等同于 review。只有有权人类可以决定是否 Squash Merge；Agent 不得未经批准 merge 或 release，批准也不绕过 CI/required reviews。发布采用单一最终发布审核：授权语义见 [core/policy.md](core/policy.md)，Git 与 jj 下的安全执行方式见 [profiles/git.md](profiles/git.md) 与 [profiles/jj.md](profiles/jj.md)。
+Pull Request 应说明关联 Issue 或明确授权、实现结果、变更内容、验证证据、协作状态、已知限制和未覆盖内容。执行者完成本单元自审后直接 push 任务 ref、创建或更新 Draft PR，push 不需要逐次授权；团队须经过独立审阅，不把自审等同于 review。只有有权人类可以决定是否 Squash Merge；Agent 不得未经批准 merge 或 release，批准也不绕过 CI/required reviews。发布采用单一最终发布审核：授权语义见 [core/policy.md](core/policy.md)，Git 与 jj 下的安全执行方式见 [profiles/git.md](profiles/git.md) 与 [profiles/jj.md](profiles/jj.md)。
 
 微小修复快速通道（见上文）不创建 Pull Request：会话内明确授权后，将任务 change 压缩为单一 commit 直接推入 `main` 并一次性汇报；判定存疑或仓库分支保护不允许直接推送时回退本 PR 流程。
 
