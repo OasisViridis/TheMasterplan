@@ -18,6 +18,10 @@ Before the first write, confirm the 开工检查 gate in `core/workflow.md`: tas
 workspace, scope, validation entry. A row you cannot fill stops the edit.
 Before reporting done, run the repository validation entry and include its output.
 
+When a protocol term, gate category, or acceptance bar has two reasonable readings,
+list both and ask the human; do not invent a definition or widen or narrow a human
+gate. Asking about ambiguity is not an approval request.
+
 Safe local reading, editing and validation continue without per-step approval;
 unknown checks require side-effect inspection, not an assumption of safety.
 

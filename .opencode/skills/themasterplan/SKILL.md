@@ -10,6 +10,9 @@ Read the repository root `AGENTS.md` and follow its Context Router.
 Before the first write, confirm the 开工检查 gate in `core/workflow.md`. Before
 reporting done, run the repository validation entry and include its output.
 
+When a protocol term, gate category, or acceptance bar has two reasonable readings,
+list both and ask before inventing an interpretation; this is not an approval request.
+
 OpenCode itself is only an execution harness; it does not make the task
 `ABSTAINED`. If another delivery workflow owns the task lifecycle, follow the
 repository abstention rule.
