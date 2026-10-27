@@ -53,9 +53,19 @@ class WorkflowEntryContractTests(unittest.TestCase):
                 self.assertIn(gate, text, f"{path.name} 缺少人类门禁「{gate}」")
 
     def test_invoked_skill_counts_as_data_egress_authorization(self) -> None:
-        self.assertIn("用户当次点名的技能或命令", self.read(AGENTS))
-        self.assertIn("调用本身构成数据外发授权", self.read(POLICY))
-        self.assertIn("counts as authorization for its", self.read(MANAGED_BLOCK))
+        agents = self.read(AGENTS)
+        policy = self.read(POLICY)
+        block = self.read(MANAGED_BLOCK)
+        for path, text in ((AGENTS, agents), (POLICY, policy)):
+            self.assertIn("用户当次点名的技能或命令", text, f"{path.name} 丢了技能调用授权")
+            self.assertIn("不再重复索要", text, f"{path.name} 丢了「不再重复索要」")
+            self.assertIn("不自行删改内容", text, f"{path.name} 丢了「不自行删改内容」")
+        self.assertIn("用户要求删减时才删减", policy)
+        self.assertIn("自行决定调用技能不构成用户授权", policy)
+        self.assertIn("凭据值不随技能调用外发", policy)
+        self.assertIn("for that call", block)
+        self.assertIn("counts as authorization", block)
+        self.assertIn("do not redact it", block)
 
     def test_ambiguity_rule_survives_rule_edits(self) -> None:
         for path in (AGENTS, WORKFLOW):
