@@ -7,6 +7,9 @@ description: Apply TheMasterplan to delivery work in a repository that has adopt
 
 Read the repository root `AGENTS.md` and follow its Context Router.
 
+Before the first write, confirm the 开工检查 gate in `core/workflow.md`. Before
+reporting done, run the repository validation entry and include its output.
+
 OpenCode itself is only an execution harness; it does not make the task
 `ABSTAINED`. If another delivery workflow owns the task lifecycle, follow the
 repository abstention rule.

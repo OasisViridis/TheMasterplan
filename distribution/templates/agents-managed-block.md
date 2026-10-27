@@ -14,8 +14,16 @@ This block is the project Context Router. Load guidance only when the task needs
 
 Do not preload the whole rule stack.
 
+Before the first write, confirm the 开工检查 gate in `core/workflow.md`: task source,
+workspace, scope, validation entry. A row you cannot fill stops the edit.
+Before reporting done, run the repository validation entry and include its output.
+
 Safe local reading, editing and validation continue without per-step approval;
 unknown checks require side-effect inspection, not an assumption of safety.
+
+Pushing a task branch is not an approval gate: do not ask for push permission per
+change. Human gates are merge, release, destructive cleanup, and sending repo or
+user data outside the repository and platform.
 
 ## Completion Contract
 
@@ -23,6 +31,10 @@ Within the authorized scope, continue until the requested result exists, relevan
 validation passes, failures caused by the change are fixed and revalidated, and
 the final diff is reviewed. All four conditions are required. At a genuine human
 decision boundary, report unfinished work and the needed decision, not completion.
+
+Report in four lines: files changed, validation command and result, PR link or
+"not submitted, no PR" with the reason, remaining gaps. The four lines summarize
+evidence; they do not replace a real validation run on the final candidate.
 <!-- THEMASTERPLAN:END MANAGED -->
 
 ## 项目事实

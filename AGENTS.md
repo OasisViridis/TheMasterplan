@@ -3,6 +3,9 @@
 > 本文件是仓库级 Context Router。只保留项目事实、长期有效的硬边界，以及
 > “什么时候读什么”。不要在普通任务开始前预读整套规则。
 
+写第一个文件之前，先逐项确认 `core/workflow.md` 的「开工检查」四行：任务来源、
+工作区、范围、验证入口。这一步不能跳过；四项里有一项填不出来，就先停下来补齐。
+
 ## 项目事实
 
 - 项目：TheMasterplan
@@ -15,6 +18,9 @@
 - 合并策略：默认由人类决定 Squash Merge；微小修复快速通道仅按
   `core/workflow.md` 的明确条件使用。
 - 发布：tag-only；已发布 Tag 不移动、不覆盖；`v1` 不推进。
+- 版本号是发布事实：统计改动面用 `git grep` 扫已跟踪文件，不扫 `.agents/worktrees/`。
+  动手前看 `git worktree list`：`.agents/worktrees/` 下是其他任务的 checkout，不读不写；
+  有 `release-*` 分支说明同一版本正在另一次交付里做。
 
 ## 始终有效的边界
 
@@ -22,8 +28,12 @@
 - 不 force push，不覆盖或移动已发布 Tag，不猜测有冲突的远端 ref。
 - 当前任务若已由另一个交付工作流拥有生命周期，按
   `core/workflow.md` 的治理所有权规则 `ABSTAINED`，不竞争控制权。
-- merge、release、部署、受保护分支推进、破坏性远端操作，以及实质范围扩大，
-  只有在对应授权存在时执行；具体授权语义按需读取 `core/policy.md`。
+- 人类门禁只有四类，执行前取得对应授权：合并、发布（含部署）、破坏性清理（删远端
+  ref/tag、强推、重写已发布历史；`core/policy.md` §7.1 的已合并任务分支清理除外）、
+  数据外发（把仓库内容或用户数据送出仓库与平台）。受保护分支推进按合并处理；实质
+  范围扩大时先取得新的范围决定。细节按需读取 `core/policy.md`。
+- 同一任务授权范围内提交并 push 任务分支不需要向人类要授权，也不为它逐次确认；
+  push 前仍要跑权威验证、读完整 diff。
 - 当前 Issue 或人类授权定义任务目标与范围，但不能覆盖安全、隐私、合规、
   平台权限或受保护分支限制。
 
@@ -43,12 +53,14 @@
 | adoption / update / check-update | `docs/client-update-flow.md` |
 | GitHub Actions 公共接口 | `docs/actions-interface.md` |
 | 版本通道与 Release | `docs/release-channels.md` |
+| 改版本号、`policy-ref`、Release Notes | `core/policy.md` §3.1、`docs/release-channels.md`（属发布范围，先要授权） |
 | 外部工作流所有权边界 | `docs/external-workflow-abstention.md` |
 | 新项目采用与 smoke | `docs/adoption-guide.md` |
 | Matt 方法技能需要 Issue tracker 或标签映射 | `docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md` |
 | 协作术语或设计决定 | `docs/agents/domain.md` |
 
-不要因为文件存在就读取它；按任务需要渐进披露。
+不要因为文件存在就读取它；按任务需要渐进披露。唯一例外是「开工检查」：
+写操作开始前必须读 `core/workflow.md` 的那张表。
 
 ## Completion Contract
 
@@ -57,10 +69,20 @@
 1. 用户请求的结果已经实现；
 2. 与本次改动相关的验证通过；
 3. 本次改动造成的失败已修复并复验；
-4. 最终 diff 已审阅。
+4. 最终 diff 已审阅：汇报里要贴得出 `git diff`/`jj diff` 的结论与验证命令输出，
+   不接受“已审阅”的自述。
 
 若先出现真正需要人类决定的边界，报告已完成部分、未通过项与所需决定；
 不得将暂停交接写成任务完成。
+
+交付回复固定写四行，缺一行按未完成处理：
+
+1. 改了哪些文件，写路径；
+2. 验证命令与最后结论；
+3. PR 链接，或「未提交，无 PR」加不提交的原因；
+4. 未完成项与缺口，没有写「无」。
+
+四行是证据摘要，不替代四项完成条件。证据过期（又改了文件、重跑失败）就重做再报。
 
 安全的本地读取、编辑、格式化、lint、测试、修复本次改动造成的失败和重跑相关
 验证默认继续，不为这些步骤逐次请求批准。
